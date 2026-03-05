@@ -2562,6 +2562,49 @@ elif menu == "Usuários":
     tab1, tab2, tab3 = st.tabs(["Criar usuário", "Trocar senha (logado)", "Listar usuários"])
 
     with tab1:
+        new_u = st.text_input("Novo usuário", key="create_user_username")
+        new_p = st.text_input("Nova senha", type="password", key="create_user_password")
+        if st.button("Criar", type="primary", key="create_user_btn"):
+            if not new_u.strip() or not new_p:
+                st.error("Preencha usuário e senha.")
+            else:
+                salt = secrets.token_hex(16)
+                pw_hash = hash_password(new_p, salt)
+                try:
+                    uid = execute("""
+                        INSERT INTO users (username, salt, password_hash, created_at)
+                        VALUES (?, ?, ?, ?)
+                    """, (new_u.strip(), salt, pw_hash, now_str()))
+                    audit(user_id, "CREATE_USER", "users", uid, new_u.strip())
+                    st.success("Usuário criado.")
+                except Exception as e:
+                    st.error(f"Erro: {e}")
+
+    with tab2:
+        st.markdown("Trocar senha do usuário logado:")
+        current = st.text_input("Senha atual", type="password", key="pw_current")
+        newpass = st.text_input("Nova senha", type="password", key="pw_new")
+        newpass2 = st.text_input("Repetir nova senha", type="password", key="pw_new2")
+
+        if st.button("Atualizar senha", type="primary", key="pw_update_btn"):
+            u = get_user_by_username(username)
+            if not check_password(current, u["salt"], u["hash"]):
+                st.error("Senha atual incorreta.")
+            elif newpass != newpass2 or not newpass:
+                st.error("Nova senha inválida ou não confere.")
+            else:
+                salt = secrets.token_hex(16)
+                pw_hash = hash_password(newpass, salt)
+                execute("UPDATE users SET salt=?, password_hash=? WHERE id=?", (salt, pw_hash, user_id))
+                audit(user_id, "CHANGE_PASSWORD", "users", user_id, "changed")
+                st.success("Senha atualizada. ✅")
+
+    with tab3:
+        rows = fetch_all("SELECT id, username, created_at FROM users ORDER BY created_at DESC;")
+        df = pd.DataFrame(rows, columns=["id","username","created_at"])
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+    with tab1:
         new_u = st.text_input("Novo usuário")
         new_p = st.text_input("Nova senha", type="password")
         if st.button("Criar", type="primary"):
@@ -2618,4 +2661,5 @@ elif menu == "Auditoria":
         LIMIT 500
     """)
     df = pd.DataFrame(rows, columns=["id","created_at","user","action","entity","entity_id","details"])
+
     st.dataframe(df, use_container_width=True, hide_index=True)
