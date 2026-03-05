@@ -1,4 +1,5 @@
 jhonatan_jason.db
+*.db
 .streamlit/secrets.toml
 __pycache__/
 *.pyc
