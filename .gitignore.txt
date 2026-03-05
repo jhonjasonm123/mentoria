@@ -1,6 +1,0 @@
-jhonatan_jason.db
-.streamlit/secrets.toml
-__pycache__/
-*.pyc
-.venv/
-env/
