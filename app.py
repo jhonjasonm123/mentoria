@@ -6,7 +6,7 @@ import time
 import math
 import re
 from datetime import datetime, date, timedelta
-from io import BytesIO
+from io import BytesIO, StringIO
 
 import pandas as pd
 import streamlit as st
@@ -26,7 +26,7 @@ DB_PATH = "jhonatan_jason.db"
 DEFAULT_ADMIN_USER = "admin"
 DEFAULT_ADMIN_PASS = "admin123"
 
-# Regras de revisão:
+# Regras de revisão (questões manuais):
 # <80% = 20 dias; 80–90% = 30 dias; >90% = 45 dias
 def compute_review_days(accuracy_pct: float) -> int:
     if accuracy_pct < 80:
@@ -37,22 +37,42 @@ def compute_review_days(accuracy_pct: float) -> int:
 
 
 # =========================================================
-# ===== NOVO: FLASHCARDS (REVISÃO 7 / 2 dias e 1.5x) =====
+# ===== FLASHCARDS: NOVA LÓGICA (4 BOTÕES) =====
 # =========================================================
-FLASH_KNOW_DAYS = 7
-FLASH_DONTKNOW_DAYS = 2
-FLASH_MULT = 1.5
+# FACINHO: 5 dias; depois 2,5x
+# MEDIANO: 3 dias; depois 2,5x
+# NÃO SABIA: 2 dias; depois 2,5x
+# IMPOSSÍVEL LEMBRAR: 1 dia; depois 2 dias; depois 2,0x
 
-def flash_next_interval(prev_days: int, knew: bool) -> int:
-    """
-    Regra:
-    - se primeira vez: 7 (soube) ou 2 (não soube)
-    - depois: multiplica por 1.5x sempre e arredonda pra cima
-    """
-    if not prev_days or prev_days <= 0:
-        base = FLASH_KNOW_DAYS if knew else FLASH_DONTKNOW_DAYS
-        return int(base)
-    return int(math.ceil(prev_days * FLASH_MULT))
+def flash_next_interval(prev_days: int, result: str) -> int:
+    prev_days = int(prev_days or 0)
+    result = (result or "").strip().upper()
+
+    if result == "FACINHO":
+        if prev_days <= 0:
+            return 5
+        return int(math.ceil(prev_days * 2.5))
+
+    if result == "MEDIANO":
+        if prev_days <= 0:
+            return 3
+        return int(math.ceil(prev_days * 2.5))
+
+    if result == "NAO_SABIA":
+        if prev_days <= 0:
+            return 2
+        return int(math.ceil(prev_days * 2.5))
+
+    if result == "IMPOSSIVEL":
+        if prev_days <= 0:
+            return 1
+        if prev_days == 1:
+            return 2
+        return int(math.ceil(prev_days * 2.0))
+
+    if prev_days <= 0:
+        return 3
+    return int(math.ceil(prev_days * 2.0))
 
 
 # =========================================================
@@ -148,9 +168,6 @@ def format_hms(seconds: int) -> str:
     s = seconds % 60
     return f"{h:02d}:{m:02d}:{s:02d}"
 
-def format_minutes(mins: float) -> str:
-    return f"{mins:.1f} min"
-
 def audit(user_id: int, action: str, entity: str = None, entity_id: int = None, details: str = None):
     execute("""
         INSERT INTO audit_log (user_id, action, entity, entity_id, details, created_at)
@@ -159,7 +176,7 @@ def audit(user_id: int, action: str, entity: str = None, entity_id: int = None, 
 
 
 # =========================================================
-# ===== NOVO: NORMALIZAÇÃO / HASH para banco de questões =====
+# NORMALIZAÇÃO / HASH
 # =========================================================
 def norm_text(s: str) -> str:
     s = (s or "").strip().lower()
@@ -247,7 +264,7 @@ def init_db():
     );
     """)
 
-    # Sessões de estudo (cronômetro)
+    # Sessões de estudo
     cur.execute("""
     CREATE TABLE IF NOT EXISTS study_sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -256,7 +273,7 @@ def init_db():
         topic_id INTEGER,
         tags TEXT,
         duration_seconds INTEGER NOT NULL,
-        session_type TEXT NOT NULL DEFAULT 'ESTUDO', -- ESTUDO / POMODORO
+        session_type TEXT NOT NULL DEFAULT 'ESTUDO',
         notes TEXT,
         created_at TEXT NOT NULL,
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -265,7 +282,7 @@ def init_db():
     );
     """)
 
-    # Metas (questões e tempo por dia + simulados/mês)
+    # Metas
     cur.execute("""
     CREATE TABLE IF NOT EXISTS goals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -279,7 +296,7 @@ def init_db():
     );
     """)
 
-    # Revisões (fila)
+    # Revisões
     cur.execute("""
     CREATE TABLE IF NOT EXISTS reviews (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -287,9 +304,9 @@ def init_db():
         subject_id INTEGER NOT NULL,
         topic_id INTEGER,
         due_date TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'PENDENTE', -- PENDENTE / CONCLUIDA
-        origin_type TEXT DEFAULT 'QUESTOES',     -- QUESTOES / SIMULADO / MANUAL
-        origin_id INTEGER,                      -- id do log/simulado
+        status TEXT NOT NULL DEFAULT 'PENDENTE',
+        origin_type TEXT DEFAULT 'QUESTOES',
+        origin_id INTEGER,
         last_accuracy REAL,
         created_at TEXT NOT NULL,
         completed_at TEXT,
@@ -299,7 +316,7 @@ def init_db():
     );
     """)
 
-    # Preferências (alertas)
+    # Preferências
     cur.execute("""
     CREATE TABLE IF NOT EXISTS prefs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -327,38 +344,7 @@ def init_db():
     """)
 
     # =========================================================
-    # ===== NOVO: BANCO DE QUESTÕES + TENTATIVAS POR ASSUNTO =====
-    # =========================================================
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS question_bank (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        assunto TEXT NOT NULL,
-        subassunto TEXT,
-        enunciado TEXT NOT NULL,
-        alternativas TEXT,
-        gabarito TEXT,
-        explicacao TEXT,
-        source TEXT,
-        q_hash TEXT NOT NULL UNIQUE,
-        created_at TEXT NOT NULL
-    );
-    """)
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS question_attempts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        question_id INTEGER NOT NULL,
-        assunto TEXT NOT NULL,
-        is_correct INTEGER NOT NULL,
-        seconds_spent INTEGER DEFAULT 0,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY(question_id) REFERENCES question_bank(id) ON DELETE CASCADE
-    );
-    """)
-
-    # =========================================================
-    # ===== NOVO: FLASHCARDS + FILA DE REVISÃO =====
+    # FLASHCARDS + FILA (3 respostas)
     # =========================================================
     cur.execute("""
     CREATE TABLE IF NOT EXISTS flashcards (
@@ -367,14 +353,17 @@ def init_db():
         assunto TEXT NOT NULL,
         tags TEXT,
         f_front TEXT NOT NULL,
-        f_back TEXT,
+        f_back1 TEXT,
+        f_back2 TEXT,
+        f_back3 TEXT,
         f_cloze TEXT,
-        card_type TEXT NOT NULL DEFAULT 'BASIC', -- BASIC / CLOZE
+        card_type TEXT NOT NULL DEFAULT 'BASIC',
         source TEXT,
         c_hash TEXT NOT NULL UNIQUE,
         created_at TEXT NOT NULL
     );
     """)
+
     cur.execute("""
     CREATE TABLE IF NOT EXISTS flash_reviews (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -382,14 +371,20 @@ def init_db():
         card_id INTEGER NOT NULL,
         due_date TEXT NOT NULL,
         interval_days INTEGER NOT NULL DEFAULT 0,
-        last_result TEXT, -- KNEW / DONTKNOW
-        status TEXT NOT NULL DEFAULT 'PENDENTE', -- PENDENTE / CONCLUIDA
+        last_result TEXT,
+        status TEXT NOT NULL DEFAULT 'PENDENTE',
         last_reviewed_at TEXT,
         created_at TEXT NOT NULL,
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY(card_id) REFERENCES flashcards(id) ON DELETE CASCADE
     );
     """)
+
+    # índices (ajudam MUITO na pesquisa)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_flash_assunto ON flashcards(assunto);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_flash_deck ON flashcards(deck);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_flash_front ON flashcards(f_front);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_flash_due ON flash_reviews(user_id, due_date, status);")
 
     conn.commit()
 
@@ -417,217 +412,7 @@ init_db()
 
 
 # =========================================================
-# ===== NOVO: FUNÇÕES DO BANCO DE QUESTÕES / FLASHCARDS =====
-# =========================================================
-def qb_upsert_question(assunto: str, subassunto: str, enunciado: str,
-                       alternativas: str = None, gabarito: str = None,
-                       explicacao: str = None, source: str = None):
-    if not assunto or not enunciado:
-        return None
-    h = hash_text(f"{assunto}|{subassunto}|{enunciado}|{alternativas}|{gabarito}")
-    try:
-        qid = execute("""
-            INSERT OR IGNORE INTO question_bank
-            (assunto, subassunto, enunciado, alternativas, gabarito, explicacao, source, q_hash, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (assunto.strip(), (subassunto or "").strip() or None, enunciado.strip(),
-              (alternativas or "").strip() or None, (gabarito or "").strip() or None,
-              (explicacao or "").strip() or None, (source or "").strip() or None,
-              h, now_str()))
-        return qid
-    except Exception:
-        return None
-
-def qb_list_assuntos():
-    rows = fetch_all("SELECT DISTINCT assunto FROM question_bank ORDER BY assunto;")
-    return [r[0] for r in rows]
-
-def qb_search(assunto: str = None, q: str = None, limit: int = 200):
-    sql = """
-        SELECT id, assunto, COALESCE(subassunto,''), enunciado, COALESCE(source,'')
-        FROM question_bank
-        WHERE 1=1
-    """
-    params = []
-    if assunto and assunto != "Todos":
-        sql += " AND assunto = ?"
-        params.append(assunto)
-    if q and q.strip():
-        sql += " AND (enunciado LIKE ? OR subassunto LIKE ?)"
-        params.extend([f"%{q.strip()}%", f"%{q.strip()}%"])
-    sql += " ORDER BY id DESC LIMIT ?"
-    params.append(int(limit))
-    return fetch_all(sql, tuple(params))
-
-def qb_register_attempt(user_id: int, question_id: int, assunto: str, is_correct: bool, seconds_spent: int = 0):
-    execute("""
-        INSERT INTO question_attempts (user_id, question_id, assunto, is_correct, seconds_spent, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (user_id, int(question_id), assunto, 1 if is_correct else 0, int(seconds_spent or 0), now_str()))
-    audit(user_id, "ATTEMPT_QUESTION", "question_attempts", None, f"qid={question_id}, assunto={assunto}, ok={is_correct}")
-
-def stats_attempts_today_by_assunto(user_id: int):
-    rows = fetch_all("""
-        SELECT assunto,
-               COUNT(*) as total,
-               SUM(is_correct) as correct
-        FROM question_attempts
-        WHERE user_id=? AND DATE(created_at)=DATE(?)
-        GROUP BY assunto
-        ORDER BY total DESC
-    """, (user_id, today_str()))
-    out = []
-    for a, total, corr in rows:
-        total = int(total or 0)
-        corr = int(corr or 0)
-        acc = (corr/total*100.0) if total > 0 else 0.0
-        out.append((a, total, corr, acc))
-    return out
-
-def stats_attempts_window_by_assunto(user_id: int, days_back: int = 90):
-    since = (date.today() - timedelta(days=days_back)).isoformat()
-    rows = fetch_all("""
-        SELECT assunto,
-               COUNT(*) as total,
-               SUM(is_correct) as correct
-        FROM question_attempts
-        WHERE user_id=? AND DATE(created_at) >= DATE(?)
-        GROUP BY assunto
-        ORDER BY total DESC
-    """, (user_id, since))
-    out = []
-    for a, total, corr in rows:
-        total = int(total or 0)
-        corr = int(corr or 0)
-        acc = (corr/total*100.0) if total > 0 else 0.0
-        out.append((a, total, corr, acc))
-    return out
-
-def simulado_auto_pick_questions(user_id: int, n: int = 20, days_back: int = 180):
-    """
-    Puxa mais questões dos assuntos com pior desempenho recente.
-    Se não houver desempenho, distribui uniforme.
-    """
-    assuntos = qb_list_assuntos()
-    if not assuntos:
-        return []
-
-    stats = stats_attempts_window_by_assunto(user_id, days_back=days_back)
-    stat_map = {a: (total, corr, acc) for a, total, corr, acc in stats}
-
-    weights = []
-    for a in assuntos:
-        if a in stat_map:
-            _, _, acc = stat_map[a]
-            w = max(1.0, 100.0 - float(acc))  # pior acc => maior peso
-        else:
-            w = 50.0  # sem histórico: peso médio
-        weights.append(w)
-
-    # normaliza e define quantas questões por assunto
-    total_w = sum(weights) or 1.0
-    quotas = {}
-    for a, w in zip(assuntos, weights):
-        quotas[a] = max(1, int(round((w / total_w) * n)))
-
-    # ajusta para ficar exatamente n
-    picked = []
-    for a in sorted(quotas.keys(), key=lambda x: quotas[x], reverse=True):
-        rows = qb_search(assunto=a, q=None, limit=500)
-        # evita pegar só as mais novas sempre: dá uma "andada" com offset simples
-        if not rows:
-            continue
-        need = quotas[a]
-        for r in rows[:need]:
-            picked.append(r)
-            if len(picked) >= n:
-                break
-        if len(picked) >= n:
-            break
-
-    return picked[:n]
-
-def simple_variation_text(enunciado: str) -> str:
-    """
-    Variação offline leve (sem IA):
-    - troca alguns conectores, remove duplicidades, muda pequenas frases
-    """
-    s = (enunciado or "").strip()
-    if not s:
-        return s
-    rep = [
-        ("Assinale a alternativa correta", "Marque a opção correta"),
-        ("assinale a alternativa correta", "marque a opção correta"),
-        ("qual é", "qual alternativa representa"),
-        ("sobre", "a respeito de"),
-        ("é correto afirmar", "é verdadeiro dizer"),
-    ]
-    for a, b in rep:
-        if a in s:
-            s = s.replace(a, b)
-            break
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
-
-def flash_upsert_card(deck: str, assunto: str, tags: str, front: str, back: str, cloze: str, card_type: str, source: str):
-    if not assunto or not front:
-        return None
-    h = hash_text(f"{deck}|{assunto}|{tags}|{front}|{back}|{cloze}|{card_type}")
-    try:
-        cid = execute("""
-            INSERT OR IGNORE INTO flashcards
-            (deck, assunto, tags, f_front, f_back, f_cloze, card_type, source, c_hash, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, ((deck or "").strip() or None, assunto.strip(), (tags or "").strip() or None,
-              front.strip(), (back or "").strip() or None, (cloze or "").strip() or None,
-              (card_type or "BASIC").strip().upper(), (source or "").strip() or None,
-              h, now_str()))
-        return cid
-    except Exception:
-        return None
-
-def flash_ensure_queue(user_id: int, card_id: int):
-    # se não existir fila para esse card, cria pendente com due hoje
-    row = fetch_one("SELECT id FROM flash_reviews WHERE user_id=? AND card_id=?", (user_id, card_id))
-    if row:
-        return row[0]
-    rid = execute("""
-        INSERT INTO flash_reviews (user_id, card_id, due_date, interval_days, last_result, status, last_reviewed_at, created_at)
-        VALUES (?, ?, ?, 0, NULL, 'PENDENTE', NULL, ?)
-    """, (user_id, card_id, today_str(), now_str()))
-    return rid
-
-def flash_due_cards(user_id: int, limit: int = 30):
-    rows = fetch_all("""
-        SELECT fr.id, fr.card_id, fr.due_date, fr.interval_days, COALESCE(fr.last_result,''), f.assunto, COALESCE(f.deck,''), f.card_type,
-               f.f_front, COALESCE(f.f_back,''), COALESCE(f.f_cloze,''), COALESCE(f.tags,''), COALESCE(f.source,'')
-        FROM flash_reviews fr
-        JOIN flashcards f ON f.id = fr.card_id
-        WHERE fr.user_id=? AND fr.status='PENDENTE' AND DATE(fr.due_date) <= DATE(?)
-        ORDER BY fr.due_date ASC
-        LIMIT ?
-    """, (user_id, today_str(), int(limit)))
-    return rows
-
-def flash_mark(user_id: int, fr_id: int, knew: bool):
-    row = fetch_one("SELECT interval_days, card_id FROM flash_reviews WHERE id=? AND user_id=?", (int(fr_id), user_id))
-    if not row:
-        return None
-    prev = int(row[0] or 0)
-    card_id = int(row[1])
-    nxt = flash_next_interval(prev, knew=knew)
-    due = (date.today() + timedelta(days=nxt)).isoformat()
-    execute("""
-        UPDATE flash_reviews
-        SET due_date=?, interval_days=?, last_result=?, last_reviewed_at=?, status='PENDENTE'
-        WHERE id=? AND user_id=?
-    """, (due, int(nxt), "KNEW" if knew else "DONTKNOW", now_str(), int(fr_id), user_id))
-    audit(user_id, "FLASH_REVIEW", "flash_reviews", int(fr_id), f"knew={knew}, next={nxt}d, due={due}")
-    return due, nxt, card_id
-
-
-# =========================================================
-# AUTH + SETUP ROWS
+# AUTH + SETUP
 # =========================================================
 def get_user_by_username(username: str):
     row = fetch_one("SELECT id, username, salt, password_hash FROM users WHERE username = ?", (username,))
@@ -654,12 +439,10 @@ def ensure_prefs_row(user_id: int):
 def login_box():
     st.markdown(f"## 🔐 {APP_NAME} — Login")
     st.caption("Digite usuário e senha")
-
     with st.form("login_form", clear_on_submit=False):
         username = st.text_input("Usuário", value="")
         password = st.text_input("Senha", type="password", value="")
         ok = st.form_submit_button("Entrar")
-
     if ok:
         u = get_user_by_username(username.strip())
         if not u:
@@ -668,7 +451,6 @@ def login_box():
         if not check_password(password, u["salt"], u["hash"]):
             st.error("Senha incorreta.")
             return
-
         st.session_state["auth_user"] = {"id": u["id"], "username": u["username"]}
         ensure_goal_row(u["id"])
         ensure_prefs_row(u["id"])
@@ -721,7 +503,7 @@ def add_review(user_id: int, subject_id: int, topic_id, accuracy: float, origin_
         INSERT INTO reviews (user_id, subject_id, topic_id, due_date, status, origin_type, origin_id, last_accuracy, created_at)
         VALUES (?, ?, ?, ?, 'PENDENTE', ?, ?, ?, ?)
     """, (user_id, subject_id, topic_id, due, origin_type, origin_id, accuracy, now_str()))
-    audit(user_id, "CREATE_REVIEW", "reviews", rid, f"due={due}, acc={accuracy:.1f}, origin={origin_type}:{origin_id}")
+    audit(user_id, "CRIAR_REVISAO", "reviews", rid, f"venc={due}, acc={accuracy:.1f}, origem={origin_type}:{origin_id}")
     return rid, due, days
 
 def add_question_log(user_id: int, subject_id: int, topic_id, tags: str, questions: int, correct: int, source: str, notes: str):
@@ -729,14 +511,13 @@ def add_question_log(user_id: int, subject_id: int, topic_id, tags: str, questio
         raise ValueError("Número de questões deve ser > 0.")
     if correct < 0 or correct > questions:
         raise ValueError("Acertos inválidos.")
-
     accuracy = (correct / questions) * 100.0
     log_id = execute("""
         INSERT INTO question_logs (user_id, subject_id, topic_id, tags, questions, correct, accuracy, source, notes, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (user_id, subject_id, topic_id, (tags or "").strip() or None, questions, correct, accuracy,
           (source or "").strip() or None, (notes or "").strip() or None, now_str()))
-    audit(user_id, "CREATE_QUESTIONS", "question_logs", log_id, f"q={questions}, c={correct}, acc={accuracy:.1f}")
+    audit(user_id, "CRIAR_QUESTOES", "question_logs", log_id, f"q={questions}, c={correct}, acc={accuracy:.1f}")
     add_review(user_id, subject_id, topic_id, accuracy, "QUESTOES", log_id)
     return log_id, accuracy
 
@@ -748,23 +529,19 @@ def add_exam(user_id: int, title: str, subject_id, total_questions: int, correct
     if correct < 0 or correct > total_questions:
         raise ValueError("Acertos inválidos.")
     accuracy = (correct / total_questions) * 100.0
-
     exam_id = execute("""
         INSERT INTO exams (user_id, title, subject_id, total_questions, correct, accuracy, duration_seconds, notes, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (user_id, title.strip(), subject_id, total_questions, correct, accuracy, duration_seconds,
           (notes or "").strip() or None, now_str()))
-    audit(user_id, "CREATE_EXAM", "exams", exam_id, f"title={title}, acc={accuracy:.1f}")
-
-    # revisão vinculada ao simulado (associada à matéria, sem subtema)
+    audit(user_id, "CRIAR_SIMULADO", "exams", exam_id, f"titulo={title}, acc={accuracy:.1f}")
     if subject_id is not None:
         add_review(user_id, subject_id, None, accuracy, "SIMULADO", exam_id)
-
     return exam_id, accuracy
 
 
 # =========================================================
-# TIMER + POMODORO
+# TIMER
 # =========================================================
 def timer_init():
     if "timer_running" not in st.session_state:
@@ -772,17 +549,7 @@ def timer_init():
     if "timer_start_ts" not in st.session_state:
         st.session_state["timer_start_ts"] = None
     if "timer_accumulated" not in st.session_state:
-        st.session_state["timer_accumulated"] = 0  # segundos
-    if "pomo_mode" not in st.session_state:
-        st.session_state["pomo_mode"] = False
-    if "pomo_phase" not in st.session_state:
-        st.session_state["pomo_phase"] = "FOCO"  # FOCO / PAUSA
-    if "pomo_focus_min" not in st.session_state:
-        st.session_state["pomo_focus_min"] = 25
-    if "pomo_break_min" not in st.session_state:
-        st.session_state["pomo_break_min"] = 5
-    if "pomo_cycles_done" not in st.session_state:
-        st.session_state["pomo_cycles_done"] = 0
+        st.session_state["timer_accumulated"] = 0
 
 def timer_current_seconds():
     acc = st.session_state["timer_accumulated"]
@@ -815,7 +582,7 @@ def save_study_session(user_id: int, subject_id: int, topic_id, tags: str, durat
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (user_id, subject_id, topic_id, (tags or "").strip() or None, duration_seconds, session_type,
           (notes or "").strip() or None, now_str()))
-    audit(user_id, "CREATE_SESSION", "study_sessions", sid, f"type={session_type}, sec={duration_seconds}")
+    audit(user_id, "CRIAR_SESSAO", "study_sessions", sid, f"tipo={session_type}, seg={duration_seconds}")
     return sid
 
 
@@ -887,7 +654,7 @@ def set_goals(user_id: int, q_goal: int, min_goal: int, exams_goal: int):
         SET daily_questions_goal = ?, daily_minutes_goal = ?, monthly_exams_goal = ?, updated_at = ?
         WHERE user_id = ?
     """, (int(q_goal), int(min_goal), int(exams_goal), now_str(), user_id))
-    audit(user_id, "UPDATE_GOALS", "goals", None, f"q={q_goal}, min={min_goal}, exams={exams_goal}")
+    audit(user_id, "ATUALIZAR_METAS", "goals", None, f"q={q_goal}, min={min_goal}, sims={exams_goal}")
 
 def get_prefs(user_id: int):
     row = fetch_one("SELECT inactive_days_alert, drop_accuracy_alert FROM prefs WHERE user_id = ?", (user_id,))
@@ -901,7 +668,7 @@ def set_prefs(user_id: int, inactive_days: int, drop_acc: float):
         SET inactive_days_alert = ?, drop_accuracy_alert = ?, updated_at = ?
         WHERE user_id = ?
     """, (int(inactive_days), float(drop_acc), now_str(), user_id))
-    audit(user_id, "UPDATE_PREFS", "prefs", None, f"inactive_days={inactive_days}, drop_acc={drop_acc}")
+    audit(user_id, "ATUALIZAR_ALERTAS", "prefs", None, f"inativo={inactive_days}, queda={drop_acc}")
 
 def today_progress(user_id: int):
     d = today_str()
@@ -941,8 +708,6 @@ def month_exam_count(user_id: int):
 
 def alerts_summary(user_id: int):
     inactive_days, drop_acc = get_prefs(user_id)
-
-    # 1) matérias paradas
     rows = fetch_all("""
         SELECT s.name,
                MAX(DATE(q.created_at)) AS last_q,
@@ -969,7 +734,6 @@ def alerts_summary(user_id: int):
         if (today - last).days >= inactive_days:
             stale.append((name, last.isoformat()))
 
-    # 2) queda de desempenho (comparar últimos 14 dias vs 14 dias anteriores)
     dfq = df_question_logs(user_id, days_back=35)
     drop_msg = None
     if not dfq.empty:
@@ -987,7 +751,7 @@ def alerts_summary(user_id: int):
 
 
 # =========================================================
-# PDF REPORT (completo)
+# PDF REPORT
 # =========================================================
 def generate_pdf_report(user_id: int, username: str, date_from: date, date_to: date) -> bytes:
     dfq = df_question_logs(user_id, days_back=3650)
@@ -1049,7 +813,6 @@ def generate_pdf_report(user_id: int, username: str, date_from: date, date_to: d
         c.drawString(2*cm, 1.3*cm, f"Gerado em: {now_str()} | Usuário: {username}")
         c.drawRightString(width - 2*cm, 1.3*cm, APP_NAME)
 
-    # Página 1: resumo
     header(APP_NAME + " — Relatório", f"Período: {date_from.isoformat()} a {date_to.isoformat()}")
     y = height - 4*cm
     c.setFont("Helvetica-Bold", 12)
@@ -1061,36 +824,11 @@ def generate_pdf_report(user_id: int, username: str, date_from: date, date_to: d
     c.drawString(2*cm, y, f"Tempo estudado: {total_minutes:.1f} min")
     y -= 0.6*cm
     c.drawString(2*cm, y, f"Simulados: {total_exams} | Média (%): {avg_exam_acc:.1f}%")
-    y -= 1.0*cm
-
-    # Top matérias
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(2*cm, y, "Top matérias (por questões)")
-    y -= 0.6*cm
-    c.setFont("Helvetica", 10)
-    if not dfq.empty:
-        top = dfq.groupby("subject")["questions"].sum().sort_values(ascending=False).head(10)
-        for subj, val in top.items():
-            c.drawString(2*cm, y, f"- {subj}: {int(val)}")
-            y -= 0.45*cm
-            if y < 3*cm:
-                footer(); c.showPage()
-                header(APP_NAME + " — Relatório", "Continuação")
-                y = height - 4*cm
-                c.setFont("Helvetica", 10)
-    else:
-        c.drawString(2*cm, y, "Sem registros de questões no período.")
-        y -= 0.6*cm
-
     footer()
     c.showPage()
 
-    # Página 2: revisões vencidas
     header(APP_NAME + " — Revisões", "Vencidas (pendentes)")
     y = height - 4*cm
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(2*cm, y, "Vencidas")
-    y -= 0.6*cm
     c.setFont("Helvetica", 10)
     if overdue:
         for due_date, subj, topic, last_acc in overdue:
@@ -1103,16 +841,11 @@ def generate_pdf_report(user_id: int, username: str, date_from: date, date_to: d
                 c.setFont("Helvetica", 10)
     else:
         c.drawString(2*cm, y, "Nenhuma revisão vencida. ✅")
-        y -= 0.6*cm
     footer()
     c.showPage()
 
-    # Página 3: próximas revisões
     header(APP_NAME + " — Revisões", "Próximas (pendentes)")
     y = height - 4*cm
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(2*cm, y, "Próximas")
-    y -= 0.6*cm
     c.setFont("Helvetica", 10)
     if upcoming:
         for due_date, subj, topic, last_acc in upcoming:
@@ -1125,7 +858,6 @@ def generate_pdf_report(user_id: int, username: str, date_from: date, date_to: d
                 c.setFont("Helvetica", 10)
     else:
         c.drawString(2*cm, y, "Nenhuma revisão pendente. ✅")
-        y -= 0.6*cm
     footer()
     c.showPage()
 
@@ -1135,24 +867,383 @@ def generate_pdf_report(user_id: int, username: str, date_from: date, date_to: d
 
 
 # =========================================================
-# UI STYLE
+# UI STYLE (layout tipo “lista” igual seu exemplo)
 # =========================================================
 st.markdown(
     """
 <style>
 .block-container { padding-top: 1.2rem; }
-div[data-testid="stMetric"] { padding: 12px; border-radius: 14px;
-  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+
+div[data-testid="stMetric"] {
+  padding: 12px; border-radius: 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
 }
-.small-muted { opacity: 0.8; font-size: 0.9rem; }
-.badge { display:inline-block; padding: 0.15rem 0.5rem; border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04);
+
+.badge {
+  display:inline-block; padding: 0.15rem 0.55rem; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.04);
   font-size: 0.85rem;
 }
+
+hr.soft {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  margin: 12px 0;
+}
+
+/* LIST ROW (assuntos/decks) */
+.list-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 14px;
+  border-radius:14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  margin-bottom:10px;
+}
+.list-left { display:flex; flex-direction:column; gap:2px; }
+.list-title { font-size:1.05rem; font-weight:600; }
+.list-sub { opacity:0.75; font-size:0.9rem; }
+
+.chev {
+  opacity:0.7;
+  font-size:1.4rem;
+  padding:0 8px;
+}
+
+/* FLASH CARD */
+.flash-card {
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
+  padding: 18px 18px 14px 18px;
+}
+.flash-front {
+  font-size: 1.15rem;
+  line-height: 1.45;
+  margin: 0.25rem 0 0.65rem 0;
+}
+.flash-meta { opacity: 0.85; font-size: 0.9rem; margin-bottom: 0.5rem; }
+
+.answer-box {
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  padding: 10px 12px;
+  min-height: 44px;
+  margin-bottom: 10px;
+}
+.answer-title { font-weight:600; margin-bottom:6px; opacity:0.9; }
 </style>
 """,
     unsafe_allow_html=True,
 )
+
+
+# =========================================================
+# FLASH: FUNÇÕES + IMPORT + LISTA
+# =========================================================
+def flash_ensure_queue_for_user(user_id: int):
+    rows = fetch_all("""
+        SELECT f.id
+        FROM flashcards f
+        LEFT JOIN flash_reviews fr ON fr.card_id=f.id AND fr.user_id=?
+        WHERE fr.id IS NULL
+        LIMIT 5000
+    """, (user_id,))
+    for (cid,) in rows:
+        execute("""
+            INSERT INTO flash_reviews (user_id, card_id, due_date, interval_days, last_result, status, last_reviewed_at, created_at)
+            VALUES (?, ?, ?, 0, NULL, 'PENDENTE', NULL, ?)
+        """, (user_id, int(cid), today_str(), now_str()))
+
+def flash_mark_result(user_id: int, fr_id: int, result: str):
+    row = fetch_one("SELECT interval_days FROM flash_reviews WHERE id=? AND user_id=?", (int(fr_id), user_id))
+    if not row:
+        return None
+    prev = int(row[0] or 0)
+    nxt = flash_next_interval(prev, result=result)
+    due = (date.today() + timedelta(days=nxt)).isoformat()
+    execute("""
+        UPDATE flash_reviews
+        SET due_date=?, interval_days=?, last_result=?, last_reviewed_at=?, status='PENDENTE'
+        WHERE id=? AND user_id=?
+    """, (due, int(nxt), result, now_str(), int(fr_id), user_id))
+    audit(user_id, "FLASH_REVISAR", "flash_reviews", int(fr_id), f"res={result}, prox={nxt}d, venc={due}")
+    return due, nxt
+
+def flash_counts_by_assunto(search: str = ""):
+    search = (search or "").strip()
+    if search:
+        like = f"%{search}%"
+        rows = fetch_all("""
+            SELECT assunto, COUNT(*) total
+            FROM flashcards
+            WHERE assunto LIKE ?
+            GROUP BY assunto
+            ORDER BY total DESC, assunto ASC
+        """, (like,))
+    else:
+        rows = fetch_all("""
+            SELECT assunto, COUNT(*) total
+            FROM flashcards
+            GROUP BY assunto
+            ORDER BY total DESC, assunto ASC
+        """)
+    return [{"assunto": r[0], "total": int(r[1] or 0)} for r in rows]
+
+def flash_decks_by_assunto(assunto: str, search: str = ""):
+    assunto = (assunto or "").strip()
+    search = (search or "").strip()
+    if not assunto:
+        return []
+    if search:
+        like = f"%{search}%"
+        rows = fetch_all("""
+            SELECT COALESCE(deck,''), COUNT(*) total
+            FROM flashcards
+            WHERE assunto=? AND COALESCE(deck,'') LIKE ?
+            GROUP BY COALESCE(deck,'')
+            ORDER BY total DESC, COALESCE(deck,'') ASC
+        """, (assunto, like))
+    else:
+        rows = fetch_all("""
+            SELECT COALESCE(deck,''), COUNT(*) total
+            FROM flashcards
+            WHERE assunto=?
+            GROUP BY COALESCE(deck,'')
+            ORDER BY total DESC, COALESCE(deck,'') ASC
+        """, (assunto,))
+    return [{"deck": r[0] or "", "total": int(r[1] or 0)} for r in rows]
+
+def flash_due_list(user_id: int, assunto: str = None, deck: str = None, search: str = "", limit: int = 500):
+    """
+    Lista cards vencidos com filtro por assunto/deck e pesquisa.
+    """
+    sql = """
+        SELECT fr.id, fr.card_id, fr.due_date, fr.interval_days, COALESCE(fr.last_result,''),
+               COALESCE(f.deck,''), f.assunto, f.card_type,
+               f.f_front, COALESCE(f.f_back1,''), COALESCE(f.f_back2,''), COALESCE(f.f_back3,''),
+               COALESCE(f.f_cloze,''), COALESCE(f.tags,''), COALESCE(f.source,'')
+        FROM flash_reviews fr
+        JOIN flashcards f ON f.id=fr.card_id
+        WHERE fr.user_id=? AND fr.status='PENDENTE' AND DATE(fr.due_date) <= DATE(?)
+    """
+    params = [user_id, today_str()]
+
+    if assunto:
+        sql += " AND f.assunto=?"
+        params.append(assunto)
+
+    if deck is not None:
+        # deck pode ser "" (sem deck)
+        sql += " AND COALESCE(f.deck,'')=?"
+        params.append(deck)
+
+    search = (search or "").strip()
+    if search:
+        like = f"%{search}%"
+        sql += " AND (f.f_front LIKE ? OR COALESCE(f.tags,'') LIKE ? OR COALESCE(f.source,'') LIKE ?)"
+        params.extend([like, like, like])
+
+    sql += " ORDER BY fr.due_date ASC, fr.id ASC LIMIT ?"
+    params.append(int(limit))
+    return fetch_all(sql, tuple(params))
+
+def flash_search_any(search: str, assunto: str = None, deck: str = None, limit: int = 200):
+    """
+    Pesquisa geral (não só vencidos). Usado para “Pesquisar flashcards”.
+    """
+    search = (search or "").strip()
+    if not search:
+        return []
+
+    like = f"%{search}%"
+    sql = """
+        SELECT f.id, COALESCE(f.deck,''), f.assunto, f.f_front,
+               COALESCE(f.f_back1,''), COALESCE(f.f_back2,''), COALESCE(f.f_back3,''),
+               COALESCE(f.tags,''), COALESCE(f.source,''), f.created_at
+        FROM flashcards f
+        WHERE (f.f_front LIKE ? OR COALESCE(f.tags,'') LIKE ? OR COALESCE(f.source,'') LIKE ?)
+    """
+    params = [like, like, like]
+
+    if assunto:
+        sql += " AND f.assunto=?"
+        params.append(assunto)
+
+    if deck is not None:
+        sql += " AND COALESCE(f.deck,'')=?"
+        params.append(deck)
+
+    sql += " ORDER BY f.id DESC LIMIT ?"
+    params.append(int(limit))
+
+    rows = fetch_all(sql, tuple(params))
+    return rows
+
+def flash_upsert_card(deck: str, assunto: str, tags: str, front: str, back1: str, back2: str, back3: str,
+                      cloze: str, card_type: str, source: str):
+    """
+    IMPORTANTE: NÃO INFERE ASSUNTO.
+    O ASSUNTO vem do usuário na hora do import (ou do CSV se você escolher).
+    """
+    if not front:
+        return None
+    if not assunto:
+        return None
+
+    h = hash_text(f"{deck}|{assunto}|{tags}|{front}|{back1}|{back2}|{back3}|{cloze}|{card_type}")
+    try:
+        cid = execute("""
+            INSERT OR IGNORE INTO flashcards
+            (deck, assunto, tags, f_front, f_back1, f_back2, f_back3, f_cloze, card_type, source, c_hash, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ((deck or "").strip() or None,
+              assunto.strip(),
+              (tags or "").strip() or None,
+              front.strip(),
+              (back1 or "").strip() or None,
+              (back2 or "").strip() or None,
+              (back3 or "").strip() or None,
+              (cloze or "").strip() or None,
+              (card_type or "BASIC").strip().upper(),
+              (source or "").strip() or None,
+              h, now_str()))
+        return cid
+    except Exception:
+        return None
+
+def _read_csv_robusto(uploaded_file) -> pd.DataFrame:
+    raw = uploaded_file.getvalue()
+
+    text = None
+    for enc in ["utf-8", "utf-8-sig", "latin-1"]:
+        try:
+            text = raw.decode(enc)
+            break
+        except Exception:
+            pass
+
+    if text is None:
+        raise ValueError("Não consegui ler o arquivo. Salve como CSV em UTF-8 (ou UTF-8 com BOM).")
+
+    sep = ";" if text.count(";") > text.count(",") else ","
+
+    df = pd.read_csv(StringIO(text), sep=sep, engine="python", header="infer")
+
+    # se a primeira coluna parece texto grande, era dado => sem cabeçalho
+    first_col = str(df.columns[0])
+    if len(first_col) > 30 and (" " in first_col):
+        df = pd.read_csv(StringIO(text), sep=sep, engine="python", header=None)
+
+    return df
+
+def flash_import_df(
+    user_id: int,
+    df: pd.DataFrame,
+    tema_assunto: str,
+    deck_padrao: str = "",
+    tags_padrao: str = "",
+    fonte_padrao: str = "CSV",
+    usar_coluna_assunto_csv: bool = False,
+    usar_coluna_deck_csv: bool = False,
+) -> int:
+    """
+    Import robusto:
+    - aceita sem cabeçalho (2 a 4 colunas): frente, resp1, resp2, resp3
+    - aceita com cabeçalho (frente/front/pergunta etc)
+    - ASSUNTO: por padrão usa o tema_assunto que o usuário escolher.
+      Se marcar usar_coluna_assunto_csv, e o CSV tiver coluna assunto/tema/subject, usa ela.
+    - DECK: por padrão usa deck_padrao que o usuário escolher (pode ficar vazio).
+      Se marcar usar_coluna_deck_csv, e o CSV tiver coluna deck/baralho, usa ela.
+    """
+    tema_assunto = (tema_assunto or "").strip()
+    if not tema_assunto:
+        raise ValueError("Escolha um TEMA/ASSUNTO para importar.")
+
+    imported = 0
+
+    # sem cabeçalho => colunas numéricas
+    if all(str(c).isdigit() for c in df.columns) or all(isinstance(c, int) for c in df.columns):
+        df2 = df.copy()
+        df2.columns = [str(i) for i in range(len(df2.columns))]
+        for _, r in df2.iterrows():
+            front = str(r.get("0", "")).strip()
+            if not front:
+                continue
+            back1 = str(r.get("1", "")).strip()
+            back2 = str(r.get("2", "")).strip() if "2" in df2.columns else ""
+            back3 = str(r.get("3", "")).strip() if "3" in df2.columns else ""
+
+            assunto = tema_assunto
+            deck = deck_padrao
+            tags = tags_padrao
+
+            cid = flash_upsert_card(deck, assunto, tags, front, back1, back2, back3, "", "BASIC", fonte_padrao)
+            if cid:
+                imported += 1
+
+        flash_ensure_queue_for_user(user_id)
+        audit(user_id, "FLASH_IMPORTAR_CSV", "flashcards", None, f"importados={imported}; tema={tema_assunto}")
+        return imported
+
+    cols = {str(c).lower().strip(): c for c in df.columns}
+
+    def get_any(row, keys, default=""):
+        for k in keys:
+            col = cols.get(k)
+            if col is not None:
+                v = row.get(col)
+                if pd.notna(v):
+                    return str(v).strip()
+        return default
+
+    for _, r in df.iterrows():
+        front = get_any(r, ["frente", "front", "pergunta", "question", "q"], "")
+        if not front:
+            first_col = df.columns[0]
+            v = r.get(first_col)
+            front = str(v).strip() if pd.notna(v) else ""
+        if not front:
+            continue
+
+        back1 = get_any(r, ["resposta1", "back1", "verso1", "a1", "resposta", "back", "verso", "answer"], "")
+        back2 = get_any(r, ["resposta2", "back2", "verso2", "a2"], "")
+        back3 = get_any(r, ["resposta3", "back3", "verso3", "a3"], "")
+
+        # assunto: tema escolhido OU coluna do CSV
+        assunto = tema_assunto
+        if usar_coluna_assunto_csv:
+            a_csv = get_any(r, ["assunto", "tema", "subject"], "")
+            if a_csv:
+                assunto = a_csv
+
+        deck = deck_padrao
+        if usar_coluna_deck_csv:
+            d_csv = get_any(r, ["deck", "baralho"], "")
+            if d_csv:
+                deck = d_csv
+
+        tags = tags_padrao
+        t_csv = get_any(r, ["tags", "tag"], "")
+        if t_csv:
+            tags = (tags + ("; " if tags and t_csv else "") + t_csv).strip()
+
+        cloze = get_any(r, ["cloze", "texto", "text"], "")
+        card_type = "CLOZE" if (cloze and "{{c" in cloze) else "BASIC"
+
+        cid = flash_upsert_card(deck, assunto, tags, front, back1, back2, back3, cloze, card_type, fonte_padrao)
+        if cid:
+            imported += 1
+
+    flash_ensure_queue_for_user(user_id)
+    audit(user_id, "FLASH_IMPORTAR_CSV", "flashcards", None, f"importados={imported}; tema={tema_assunto}")
+    return imported
 
 
 # =========================================================
@@ -1174,8 +1265,8 @@ menu = st.sidebar.radio(
     [
         "Hoje",
         "Registrar",
-        "Banco de Questões (Assuntos)",
         "Flashcards",
+        "Importar Flashcards",
         "Revisões",
         "Dashboard",
         "Metas & Alertas",
@@ -1202,7 +1293,6 @@ if menu == "Hoje":
     q_goal, min_goal, exams_goal = get_goals(user_id)
     exams_month = month_exam_count(user_id)
 
-    # métricas principais
     colA, colB, colC, colD, colE = st.columns(5)
     colA.metric("Questões hoje", f"{qs}")
     colB.metric("Acertos hoje", f"{corr}")
@@ -1210,20 +1300,8 @@ if menu == "Hoje":
     colD.metric("Tempo hoje", f"{min_today:.1f} min")
     colE.metric("Simulados hoje", f"{exams_today}")
 
-    st.divider()
+    st.markdown("<hr class='soft'/>", unsafe_allow_html=True)
 
-    # ===== NOVO: Estatística do dia por ASSUNTO (banco de questões) =====
-    with st.expander("📌 Estatísticas do dia por ASSUNTO (Banco de Questões)", expanded=True):
-        rows = stats_attempts_today_by_assunto(user_id)
-        if not rows:
-            st.info("Sem tentativas no Banco de Questões hoje. Use o menu **Banco de Questões** para responder questões por assunto.")
-        else:
-            df_ass = pd.DataFrame(rows, columns=["assunto", "total", "acertos", "accuracy_%"])
-            st.dataframe(df_ass, use_container_width=True, hide_index=True)
-
-    st.divider()
-
-    # Alertas inteligentes
     stale, drop_msg = alerts_summary(user_id)
     with st.expander("⚠️ Alertas inteligentes", expanded=True):
         if stale:
@@ -1242,7 +1320,7 @@ if menu == "Hoje":
         else:
             st.info("Sem queda de desempenho relevante (no critério atual).")
 
-    st.divider()
+    st.markdown("<hr class='soft'/>", unsafe_allow_html=True)
 
     left, right = st.columns([1.25, 1])
 
@@ -1253,20 +1331,19 @@ if menu == "Hoje":
 
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            if st.button("▶️ Iniciar", use_container_width=True):
-                st.session_state["pomo_mode"] = False
+            if st.button("▶️ Iniciar", use_container_width=True, key="timer_start"):
                 timer_start()
                 st.rerun()
         with c2:
-            if st.button("⏸️ Pausar", use_container_width=True):
+            if st.button("⏸️ Pausar", use_container_width=True, key="timer_pause"):
                 timer_pause()
                 st.rerun()
         with c3:
-            if st.button("⏩ Retomar", use_container_width=True):
+            if st.button("⏩ Retomar", use_container_width=True, key="timer_resume"):
                 timer_start()
                 st.rerun()
         with c4:
-            if st.button("🔁 Zerar", use_container_width=True):
+            if st.button("🔁 Zerar", use_container_width=True, key="timer_reset"):
                 timer_reset()
                 st.rerun()
 
@@ -1275,7 +1352,7 @@ if menu == "Hoje":
         tags = st.text_input("Tags (opcional) — ex.: cardio; prova; revisão", key="timer_tags")
         notes = st.text_area("Observações (opcional)", key="timer_notes")
 
-        if st.button("✅ Finalizar e salvar", type="primary", use_container_width=True):
+        if st.button("✅ Finalizar e salvar", type="primary", use_container_width=True, key="timer_save_btn"):
             try:
                 timer_pause()
                 duration = timer_current_seconds()
@@ -1285,76 +1362,6 @@ if menu == "Hoje":
                 st.rerun()
             except Exception as e:
                 st.error(f"Erro ao salvar sessão: {e}")
-
-        st.divider()
-        st.subheader("🍅 Pomodoro (FOCO/PAUSA)")
-        preset = st.selectbox("Preset", ["25/5 (clássico)", "50/10 (intenso)", "Custom"], index=0)
-        if preset == "25/5 (clássico)":
-            focus_min, break_min = 25, 5
-        elif preset == "50/10 (intenso)":
-            focus_min, break_min = 50, 10
-        else:
-            cfm, cbm = st.columns(2)
-            with cfm:
-                focus_min = st.number_input("Foco (min)", min_value=5, max_value=180, value=int(st.session_state["pomo_focus_min"]), step=5)
-            with cbm:
-                break_min = st.number_input("Pausa (min)", min_value=1, max_value=60, value=int(st.session_state["pomo_break_min"]), step=1)
-
-        st.session_state["pomo_focus_min"] = int(focus_min)
-        st.session_state["pomo_break_min"] = int(break_min)
-
-        pomo_cols = st.columns(4)
-        with pomo_cols[0]:
-            if st.button("▶️ Iniciar Pomodoro", use_container_width=True):
-                st.session_state["pomo_mode"] = True
-                st.session_state["pomo_phase"] = "FOCO"
-                st.session_state["pomo_cycles_done"] = 0
-                timer_reset()
-                timer_start()
-                st.rerun()
-        with pomo_cols[1]:
-            if st.button("🔄 Trocar fase", use_container_width=True):
-                # encerra fase atual e troca (salva como sessão POMODORO)
-                try:
-                    timer_pause()
-                    dur = timer_current_seconds()
-                    if dur > 0:
-                        subj_idp, subj_namep, topic_idp, topic_namep = subject_topic_picker("pomo_save_quick")
-                        tagsp = st.text_input("Tags Pomodoro (opcional)", key="pomo_tags_quick")
-                        notep = st.text_input("Obs Pomodoro (opcional)", key="pomo_note_quick")
-                        save_study_session(user_id, subj_idp, topic_idp, tagsp, dur, "POMODORO", f"{st.session_state['pomo_phase']} | {notep}")
-                    # troca
-                    st.session_state["pomo_phase"] = "PAUSA" if st.session_state["pomo_phase"] == "FOCO" else "FOCO"
-                    if st.session_state["pomo_phase"] == "FOCO":
-                        st.session_state["pomo_cycles_done"] += 1
-                    timer_reset()
-                    timer_start()
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro: {e}")
-        with pomo_cols[2]:
-            if st.button("⏸️ Pausar Pomodoro", use_container_width=True):
-                timer_pause()
-                st.rerun()
-        with pomo_cols[3]:
-            if st.button("🛑 Encerrar Pomodoro", use_container_width=True):
-                timer_pause()
-                timer_reset()
-                st.session_state["pomo_mode"] = False
-                st.success("Pomodoro encerrado.")
-                st.rerun()
-
-        if st.session_state["pomo_mode"]:
-            target = (st.session_state["pomo_focus_min"] if st.session_state["pomo_phase"] == "FOCO" else st.session_state["pomo_break_min"]) * 60
-            elapsed = timer_current_seconds()
-            remaining = target - elapsed
-            st.markdown(
-                f"**Fase:** <span class='badge'>{st.session_state['pomo_phase']}</span> | "
-                f"**Ciclos concluídos:** {st.session_state['pomo_cycles_done']}  \n"
-                f"**Meta da fase:** {format_hms(target)} | **Decorrido:** {format_hms(elapsed)} | **Restante:** {format_hms(remaining)}",
-                unsafe_allow_html=True
-            )
-            st.info("Dica: clique em **Trocar fase** ao terminar o FOCO/PAUSA para registrar automaticamente.")
 
     with right:
         st.subheader("🎯 Metas do dia")
@@ -1369,46 +1376,12 @@ if menu == "Hoje":
         st.write(f"**Simulados (mês):** {exams_month} / {exams_goal}")
         st.progress(min(max(prog_e, 0), 1.0))
 
-        st.divider()
-        st.subheader("📌 Revisões para hoje / vencidas")
-        rev_rows = fetch_all("""
-            SELECT r.id, r.due_date, s.name, COALESCE(t.name,'(Sem subtema)'), COALESCE(r.last_accuracy,0)
-            FROM reviews r
-            JOIN subjects s ON s.id = r.subject_id
-            LEFT JOIN topics t ON t.id = r.topic_id
-            WHERE r.user_id = ? AND r.status='PENDENTE' AND DATE(r.due_date) <= DATE(?)
-            ORDER BY r.due_date ASC
-            LIMIT 60
-        """, (user_id, today_str()))
-
-        if not rev_rows:
-            st.success("Nenhuma revisão vencida ou para hoje. ✅")
-        else:
-            for rid, due, sname, tname, last_acc in rev_rows:
-                cols = st.columns([2.2, 2.6, 1.2])
-                cols[0].write(f"**{due}**")
-                cols[1].write(f"{sname} — {tname}")
-                cols[2].write(f"{float(last_acc):.1f}%")
-                b1, b2 = st.columns(2)
-                if b1.button(f"✅ Concluir #{rid}", key=f"done_{rid}", use_container_width=True):
-                    execute("""
-                        UPDATE reviews SET status='CONCLUIDA', completed_at=?
-                        WHERE id=? AND user_id=?
-                    """, (now_str(), rid, user_id))
-                    audit(user_id, "COMPLETE_REVIEW", "reviews", rid, "done")
-                    st.rerun()
-                if b2.button(f"🗑️ Excluir #{rid}", key=f"del_{rid}", use_container_width=True):
-                    execute("DELETE FROM reviews WHERE id=? AND user_id=?", (rid, user_id))
-                    audit(user_id, "DELETE_REVIEW", "reviews", rid, "deleted")
-                    st.rerun()
-
 
 # =========================================================
-# PAGE: REGISTRAR (questões, simulado, sessão manual)
+# PAGE: REGISTRAR
 # =========================================================
 elif menu == "Registrar":
     st.subheader("🧾 Registrar")
-
     t1, t2, t3 = st.tabs(["Questões", "Simulados", "Sessão manual"])
 
     with t1:
@@ -1474,308 +1447,260 @@ elif menu == "Registrar":
 
 
 # =========================================================
-# ===== NOVO PAGE: BANCO DE QUESTÕES (ASSUNTOS + FILTRO) =====
+# PAGE: IMPORTAR FLASHCARDS (SESSÃO SEPARADA)
 # =========================================================
-elif menu == "Banco de Questões (Assuntos)":
-    st.subheader("🏷️ Banco de Questões — Filtro por ASSUNTO + Simulado automático")
+elif menu == "Importar Flashcards":
+    st.subheader("📥 Importar Flashcards (CSV)")
 
-    tA, tB, tC = st.tabs(["Responder", "Cadastrar/Importar", "Simulado automático"])
+    st.caption("Você escolhe o **TEMA/ASSUNTO** aqui. Não tem escolha automática.")
+    colA, colB, colC = st.columns([1.2, 1.0, 1.0])
+    with colA:
+        tema = st.text_input("Tema/Assunto para estes cards (obrigatório)", value="", key="imp_tema")
+    with colB:
+        deck_padrao = st.text_input("Deck padrão (opcional)", value="", key="imp_deck")
+    with colC:
+        tags_padrao = st.text_input("Tags padrão (opcional)", value="", key="imp_tags")
 
-    with tA:
-        assuntos = ["Todos"] + qb_list_assuntos()
-        a = st.selectbox("Filtrar por assunto", assuntos, index=0)
-        qtxt = st.text_input("Pesquisar no enunciado / subassunto (opcional)")
-        rows = qb_search(assunto=a, q=qtxt, limit=200)
+    c1, c2 = st.columns(2)
+    with c1:
+        usar_assunto_csv = st.checkbox("Se o CSV tiver coluna 'assunto', usar ela (senão usa o tema acima)", value=False, key="imp_use_assunto_csv")
+    with c2:
+        usar_deck_csv = st.checkbox("Se o CSV tiver coluna 'deck', usar ela (senão usa o deck padrão)", value=False, key="imp_use_deck_csv")
 
-        if not rows:
-            st.info("Nenhuma questão encontrada. Use a aba **Cadastrar/Importar** para adicionar.")
-        else:
-            df = pd.DataFrame(rows, columns=["id", "assunto", "subassunto", "enunciado", "source"])
-            st.dataframe(df[["id","assunto","subassunto","source","enunciado"]], use_container_width=True, hide_index=True)
+    st.markdown("<hr class='soft'/>", unsafe_allow_html=True)
 
-            st.divider()
-            st.markdown("### Responder uma questão por ID (gera estatística por assunto)")
-            qid = st.number_input("ID da questão", min_value=1, step=1, value=int(df.iloc[0]["id"]))
-            qrow = fetch_one("""
-                SELECT id, assunto, COALESCE(subassunto,''), enunciado, COALESCE(alternativas,''), COALESCE(gabarito,''), COALESCE(explicacao,''), COALESCE(source,'')
-                FROM question_bank WHERE id=?
-            """, (int(qid),))
-            if qrow:
-                _, assunto, subassunto, enunciado, alternativas, gabarito, explicacao, source = qrow
-                st.write(f"**Assunto:** {assunto}  |  **Subassunto:** {subassunto}  |  **Fonte:** {source}")
-                st.markdown(f"**Enunciado:** {enunciado}")
+    up = st.file_uploader("Enviar CSV", type=["csv"], key="imp_uploader")
+    st.caption("Aceita separador **;** ou **,**, com ou sem cabeçalho. Sem cabeçalho: 2 a 4 colunas (Frente/Resp1/Resp2/Resp3).")
 
-                alt_list = []
-                if alternativas:
-                    alt_list = [x.strip() for x in alternativas.split("\n") if x.strip()]
+    if up is not None:
+        try:
+            df_csv = _read_csv_robusto(up)
+            st.dataframe(df_csv.head(20), use_container_width=True)
 
-                user_ans = None
-                if alt_list:
-                    user_ans = st.radio("Alternativas", alt_list, index=0)
+            if st.button("✅ Importar agora", type="primary", key="imp_btn"):
+                if not tema.strip():
+                    st.error("Preencha o Tema/Assunto antes de importar.")
                 else:
-                    user_ans = st.text_input("Sua resposta (texto livre)")
-
-                spent = st.number_input("Tempo gasto (seg)", min_value=0, step=10, value=0)
-                if st.button("✅ Registrar resposta"):
-                    # Checagem simples: se houver gabarito e alternativas, compara letra ou texto
-                    ok = False
-                    if gabarito:
-                        gb = gabarito.strip().upper()
-                        if alt_list:
-                            # tenta interpretar gabarito como letra A/B/C...
-                            letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                            if gb in letters[:len(alt_list)]:
-                                ok = (user_ans == alt_list[letters.index(gb)])
-                            else:
-                                ok = (norm_text(user_ans) == norm_text(gabarito))
-                        else:
-                            ok = (norm_text(user_ans) == norm_text(gabarito))
-                    else:
-                        # sem gabarito: usuário decide
-                        ok = st.checkbox("Marcar como correto (sem gabarito)", value=False, key=f"ok_{qid}")
-
-                    qb_register_attempt(user_id, int(qid), assunto, bool(ok), int(spent))
-                    st.success(f"Registrado. Correto={ok}. (Assunto: {assunto})")
-
-                    if explicacao:
-                        st.info(f"Explicação: {explicacao}")
-
-                    st.rerun()
-
-    with tB:
-        st.markdown("### Cadastrar questão manual (leve e sem travar)")
-        c1, c2 = st.columns(2)
-        with c1:
-            assunto = st.text_input("ASSUNTO (obrigatório)", value="")
-            subassunto = st.text_input("Subassunto (opcional)", value="")
-        with c2:
-            source = st.text_input("Fonte (opcional) — ex.: Bradia.pdf", value="")
-            gabarito = st.text_input("Gabarito (opcional) — ex.: A ou texto", value="")
-
-        enunciado = st.text_area("Enunciado (obrigatório)", value="", height=120)
-        alternativas = st.text_area("Alternativas (opcional) — 1 por linha", value="", height=120)
-        explicacao = st.text_area("Explicação (opcional)", value="", height=100)
-
-        if st.button("➕ Salvar questão no banco", type="primary"):
-            if not assunto.strip() or not enunciado.strip():
-                st.error("Assunto e enunciado são obrigatórios.")
-            else:
-                qb_upsert_question(assunto.strip(), subassunto.strip(), enunciado.strip(),
-                                   alternativas.strip() or None, gabarito.strip() or None,
-                                   explicacao.strip() or None, source.strip() or None)
-                st.success("Questão salva (ou já existia pelo hash).")
-                st.rerun()
-
-        st.divider()
-        st.markdown("### Importar questões via CSV (para teste)")
-        st.caption("CSV esperado: assunto, subassunto, enunciado, alternativas, gabarito, explicacao, source")
-        up = st.file_uploader("Enviar CSV de questões", type=["csv"], key="qb_csv")
-        if up is not None:
-            df = pd.read_csv(up)
-            st.dataframe(df.head(20), use_container_width=True)
-            if st.button("Importar CSV de questões", type="primary"):
-                okc = 0
-                for _, r in df.iterrows():
-                    qb_upsert_question(
-                        str(r.get("assunto","")).strip(),
-                        str(r.get("subassunto","")).strip(),
-                        str(r.get("enunciado","")).strip(),
-                        str(r.get("alternativas","")).strip() or None,
-                        str(r.get("gabarito","")).strip() or None,
-                        str(r.get("explicacao","")).strip() or None,
-                        str(r.get("source","")).strip() or None,
+                    qtd = flash_import_df(
+                        user_id=user_id,
+                        df=df_csv,
+                        tema_assunto=tema.strip(),
+                        deck_padrao=deck_padrao.strip(),
+                        tags_padrao=tags_padrao.strip(),
+                        fonte_padrao="CSV",
+                        usar_coluna_assunto_csv=bool(usar_assunto_csv),
+                        usar_coluna_deck_csv=bool(usar_deck_csv),
                     )
-                    okc += 1
-                audit(user_id, "IMPORT_QB_CSV", "question_bank", None, f"rows={okc}")
-                st.success(f"Importado: {okc} linhas (duplicatas ignoradas por hash).")
-                st.rerun()
-
-    with tC:
-        st.markdown("### Simulado automático por rendimento (assuntos piores aparecem mais)")
-        n = st.number_input("Quantidade de questões", min_value=5, max_value=200, value=20, step=5)
-        days_back = st.slider("Janela de desempenho (dias)", 30, 365, 180)
-
-        if st.button("🎯 Gerar simulado automático", type="primary"):
-            picked = simulado_auto_pick_questions(user_id, n=int(n), days_back=int(days_back))
-            if not picked:
-                st.error("Não há questões no banco. Cadastre/importa primeiro.")
-            else:
-                st.session_state["auto_simulado"] = picked
-                st.success("Simulado gerado. Responda abaixo.")
-
-        picked = st.session_state.get("auto_simulado", [])
-        if picked:
-            st.divider()
-            st.write(f"**Questões no simulado:** {len(picked)}")
-            total_ok = 0
-            total_done = 0
-
-            for idx, row in enumerate(picked, start=1):
-                qid, assunto, subassunto, enunciado, source = row
-                st.markdown(f"#### Q{idx} — {assunto} / {subassunto}  <span class='badge'>{source}</span>", unsafe_allow_html=True)
-
-                qrow = fetch_one("""
-                    SELECT enunciado, COALESCE(alternativas,''), COALESCE(gabarito,''), COALESCE(explicacao,'')
-                    FROM question_bank WHERE id=?
-                """, (int(qid),))
-                if not qrow:
-                    continue
-                enun, alts, gb, exp = qrow
-                st.markdown(simple_variation_text(enun))  # variação leve offline
-
-                alt_list = []
-                if alts:
-                    alt_list = [x.strip() for x in alts.split("\n") if x.strip()]
-                if alt_list:
-                    ans = st.radio(f"Resposta Q{idx}", alt_list, index=0, key=f"sim_ans_{qid}_{idx}")
-                else:
-                    ans = st.text_input(f"Resposta Q{idx}", key=f"sim_ans_free_{qid}_{idx}")
-
-                mark = st.selectbox(f"Marcar resultado Q{idx}", ["(não responder ainda)", "Correto", "Errado"], index=0, key=f"sim_mark_{qid}_{idx}")
-                if mark != "(não responder ainda)":
-                    total_done += 1
-                    ok = (mark == "Correto")
-                    if ok:
-                        total_ok += 1
-                    # registra tentativa (para estatística por assunto)
-                    qb_register_attempt(user_id, int(qid), assunto, ok, 0)
-                    if gb:
-                        st.caption(f"Gabarito: {gb}")
-                    if exp:
-                        st.caption(f"Explicação: {exp}")
-
-                st.divider()
-
-            if total_done > 0:
-                acc = (total_ok / total_done) * 100.0
-                st.success(f"Parcial do simulado: {total_ok}/{total_done} = {acc:.1f}%")
-            else:
-                st.info("Marque 'Correto/Errado' em cada questão para computar o simulado.")
+                    st.success(f"Importados: {qtd} flashcards.")
+                    st.info("Agora vá em **Flashcards** para revisar.")
+        except Exception as e:
+            st.error(f"Erro ao importar: {e}")
 
 
 # =========================================================
-# ===== NOVO PAGE: FLASHCARDS =====
+# PAGE: FLASHCARDS (SESSÃO APENAS REVISÃO + FILTROS + PESQUISA)
 # =========================================================
 elif menu == "Flashcards":
-    st.subheader("🧠 Flashcards — revisão 7 / 2 dias + 1.5x")
+    st.subheader("🧠 Flashcards")
 
-    t1, t2, t3 = st.tabs(["Revisar (hoje/vencidas)", "Cadastrar/Importar", "Estatísticas"])
+    flash_ensure_queue_for_user(user_id)
 
-    with t1:
-        due = flash_due_cards(user_id, limit=30)
-        if not due:
-            st.success("Nenhum flashcard vencido para hoje. ✅")
+    # Estado de navegação (assunto -> deck -> revisar)
+    if "fc_assunto" not in st.session_state:
+        st.session_state["fc_assunto"] = ""
+    if "fc_deck" not in st.session_state:
+        st.session_state["fc_deck"] = None  # None = todos; "" = sem deck
+    if "fc_idx" not in st.session_state:
+        st.session_state["fc_idx"] = 0
+
+    # Topo: pesquisa
+    top1, top2, top3 = st.columns([2.2, 1.0, 1.0])
+    with top1:
+        search = st.text_input("Pesquisar flashcards (frente/tags/fonte)", value="", key="fc_search")
+    with top2:
+        if st.button("🔄 Recarregar", use_container_width=True, key="fc_reload"):
+            st.session_state["fc_idx"] = 0
+            flash_ensure_queue_for_user(user_id)
+            st.rerun()
+    with top3:
+        mostrar_respostas = st.checkbox("Mostrar respostas", value=False, key="fc_show_ans")
+
+    st.markdown("<hr class='soft'/>", unsafe_allow_html=True)
+
+    # Layout tipo lista (igual seu exemplo): coluna esquerda (assuntos/decks) e direita (card)
+    left, right = st.columns([1.0, 1.55])
+
+    # ========== COLUNA ESQUERDA: ASSUNTOS E DECKS ==========
+    with left:
+        st.markdown("### Assuntos")
+
+        ass_q = st.text_input("Filtrar assuntos", value="", key="fc_assunto_search")
+        assuntos = flash_counts_by_assunto(search=ass_q)
+
+        if not assuntos:
+            st.info("Nenhum assunto encontrado.")
         else:
-            st.warning(f"Você tem **{len(due)}** flashcards para revisar agora.")
-            for fr_id, card_id, due_date, interval_days, last_result, assunto, deck, ctype, front, back, cloze, tags, source in due:
-                st.markdown(f"### {assunto}  <span class='badge'>{deck or 'sem deck'}</span>  <span class='badge'>venc.: {due_date}</span>", unsafe_allow_html=True)
-                st.caption(f"Tipo: {ctype} | Tags: {tags} | Fonte: {source} | Intervalo atual: {interval_days}d")
+            for item in assuntos[:60]:
+                a = item["assunto"]
+                total = item["total"]
+                selected = (a == st.session_state["fc_assunto"])
+                btn_label = f"{'✅ ' if selected else ''}{a}"
+                rowA, rowB = st.columns([5, 1])
+                with rowA:
+                    if st.button(btn_label, use_container_width=True, key=f"pick_ass_{hash_text(a)}"):
+                        st.session_state["fc_assunto"] = a
+                        st.session_state["fc_deck"] = None
+                        st.session_state["fc_idx"] = 0
+                        st.rerun()
+                with rowB:
+                    st.markdown(f"<div class='chev'>›</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='list-sub'>{total} cards</div>", unsafe_allow_html=True)
+                st.markdown("<hr class='soft'/>", unsafe_allow_html=True)
 
-                if ctype == "CLOZE" and cloze:
-                    st.markdown(f"**Cloze:** {cloze}")
-                st.markdown(f"**Frente:** {front}")
-                with st.expander("Ver resposta"):
-                    if ctype == "CLOZE" and cloze and back:
-                        st.markdown(f"**Resposta:** {back}")
-                    else:
-                        st.markdown(f"**Verso:** {back}")
+        st.markdown("### Decks")
 
-                cA, cB = st.columns(2)
-                if cA.button("✅ Soube", key=f"knew_{fr_id}", use_container_width=True):
-                    due2, nxt, _ = flash_mark(user_id, int(fr_id), knew=True)
-                    st.success(f"Próxima revisão: {due2} (intervalo {nxt} dias)")
-                    st.rerun()
-                if cB.button("❌ Não soube", key=f"dk_{fr_id}", use_container_width=True):
-                    due2, nxt, _ = flash_mark(user_id, int(fr_id), knew=False)
-                    st.error(f"Próxima revisão: {due2} (intervalo {nxt} dias)")
-                    st.rerun()
-                st.divider()
+        if not st.session_state["fc_assunto"]:
+            st.info("Selecione um assunto acima.")
+        else:
+            deck_q = st.text_input("Filtrar decks", value="", key="fc_deck_search")
+            decks = flash_decks_by_assunto(st.session_state["fc_assunto"], search=deck_q)
 
-    with t2:
-        st.markdown("### Cadastrar flashcard manual")
-        c1, c2 = st.columns(2)
-        with c1:
-            deck = st.text_input("Deck (opcional)", value="")
-            assunto = st.text_input("Assunto (obrigatório)", value="")
-        with c2:
-            tags = st.text_input("Tags (opcional)", value="")
-            source = st.text_input("Fonte (opcional)", value="")
+            # opção “Todos os decks”
+            sel_all = (st.session_state["fc_deck"] is None)
+            if st.button(f"{'✅ ' if sel_all else ''}Todos os decks", use_container_width=True, key="pick_deck_all"):
+                st.session_state["fc_deck"] = None
+                st.session_state["fc_idx"] = 0
+                st.rerun()
 
-        ctype = st.selectbox("Tipo", ["BASIC", "CLOZE"], index=0)
-        front = st.text_area("Frente (obrigatório)", value="", height=100)
-        back = st.text_area("Verso (BASIC) / Resposta (CLOZE)", value="", height=100)
-        cloze = ""
-        if ctype == "CLOZE":
-            cloze = st.text_area("Texto Cloze (ex.: ... {{c1::lacuna}} ...)", value="", height=100)
+            # decks list
+            for d in decks[:80]:
+                deck_name = d["deck"]  # pode ser ""
+                total = d["total"]
+                label = deck_name if deck_name else "(Sem deck)"
+                selected = (deck_name == (st.session_state["fc_deck"] if st.session_state["fc_deck"] is not None else "__NONE__"))
+                rowA, rowB = st.columns([5, 1])
+                with rowA:
+                    if st.button(f"{'✅ ' if selected else ''}{label}", use_container_width=True, key=f"pick_deck_{hash_text(st.session_state['fc_assunto']+'|'+label)}"):
+                        st.session_state["fc_deck"] = deck_name
+                        st.session_state["fc_idx"] = 0
+                        st.rerun()
+                with rowB:
+                    st.markdown(f"<div class='chev'>›</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='list-sub'>{total} cards</div>", unsafe_allow_html=True)
 
-        if st.button("➕ Salvar flashcard", type="primary"):
-            if not assunto.strip() or not front.strip():
-                st.error("Assunto e frente são obrigatórios.")
+    # ========== COLUNA DIREITA: REVISÃO (VENCIDOS) + CARD ==========
+    with right:
+        st.markdown("### Revisão (vencidos)")
+
+        if not st.session_state["fc_assunto"]:
+            st.info("Escolha um assunto à esquerda para começar.")
+        else:
+            # filtros aplicados
+            due = flash_due_list(
+                user_id=user_id,
+                assunto=st.session_state["fc_assunto"],
+                deck=st.session_state["fc_deck"],
+                search=search,
+                limit=500
+            )
+
+            # métricas
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Vencidos", f"{len(due)}")
+            total_cards_ass = fetch_one("SELECT COUNT(*) FROM flashcards WHERE assunto=?", (st.session_state["fc_assunto"],))
+            m2.metric("Total no assunto", f"{int(total_cards_ass[0]) if total_cards_ass else 0}")
+            m3.metric("Deck selecionado", (st.session_state["fc_deck"] if st.session_state["fc_deck"] is not None else "Todos") or "(Sem deck)")
+
+            st.markdown("<hr class='soft'/>", unsafe_allow_html=True)
+
+            if not due:
+                st.success("Nenhum flashcard vencido com esses filtros. ✅")
+                st.caption("Dica: troque o deck, limpe a pesquisa, ou aguarde os próximos dias.")
             else:
-                cid = flash_upsert_card(deck, assunto, tags, front, back, cloze, ctype, source)
-                if cid is None:
-                    st.warning("Não foi possível inserir (pode ser duplicado).")
-                else:
-                    flash_ensure_queue(user_id, int(cid))
-                    audit(user_id, "CREATE_FLASH", "flashcards", int(cid), f"{assunto}")
-                    st.success("Flashcard salvo e colocado na fila (due hoje).")
-                st.rerun()
+                total = len(due)
+                idx = max(0, min(int(st.session_state["fc_idx"]), total - 1))
+                st.session_state["fc_idx"] = idx
 
-        st.divider()
-        st.markdown("### Importar flashcards via CSV (para teste)")
-        st.caption("Aceita CSV do Anki simples. Colunas aceitas: Front/Back ou frente/verso ou cloze/text.")
-        up = st.file_uploader("Enviar CSV de flashcards", type=["csv"], key="flash_csv")
-        if up is not None:
-            df = pd.read_csv(up)
-            st.dataframe(df.head(20), use_container_width=True)
+                (fr_id, card_id, due_date, interval_days, last_result,
+                 deck, assunto, ctype,
+                 front, back1, back2, back3,
+                 cloze, tags, source) = due[idx]
 
-            default_assunto = st.text_input("Assunto padrão (se o CSV não tiver)", value="Geral")
-            default_deck = st.text_input("Deck padrão (se o CSV não tiver)", value="Importado")
+                # Navegação horizontal
+                navL, navM, navR = st.columns([1, 3, 1])
+                with navL:
+                    if st.button("⬅️ Anterior", use_container_width=True, key="fc_prev"):
+                        st.session_state["fc_idx"] = max(0, idx - 1)
+                        st.rerun()
+                with navM:
+                    st.progress((idx + 1) / max(1, total))
+                    st.caption(f"Card {idx+1} de {total} | Vencido: {due_date} | Intervalo: {interval_days} dias | Último: {last_result or '—'}")
+                with navR:
+                    if st.button("Próximo ➡️", use_container_width=True, key="fc_next"):
+                        st.session_state["fc_idx"] = min(total - 1, idx + 1)
+                        st.rerun()
 
-            if st.button("Importar CSV de flashcards", type="primary"):
-                imported = 0
-                cols = {c.lower(): c for c in df.columns}
-                for _, r in df.iterrows():
-                    # tenta detectar campos
-                    front_v = str(r.get(cols.get("front",""), r.get(cols.get("frente",""), r.get("Front","")))).strip()
-                    back_v = str(r.get(cols.get("back",""), r.get(cols.get("verso",""), r.get("Back","")))).strip()
-                    cloze_v = str(r.get(cols.get("cloze",""), r.get(cols.get("text",""), ""))).strip()
+                # Card
+                st.markdown("<div class='flash-card'>", unsafe_allow_html=True)
+                meta = f"<span class='badge'>{assunto}</span>  <span class='badge'>{deck or '(Sem deck)'}</span>  <span class='badge'>{source or 'Sem fonte'}</span>"
+                st.markdown(f"<div class='flash-meta'>{meta}</div>", unsafe_allow_html=True)
+                if tags:
+                    st.markdown(f"<div class='flash-meta'>Tags: {tags}</div>", unsafe_allow_html=True)
+                if ctype == "CLOZE" and cloze:
+                    st.markdown(cloze)
+                st.markdown(f"<div class='flash-front'>{front}</div>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
 
-                    assunto_v = str(r.get(cols.get("assunto",""), default_assunto)).strip() or default_assunto
-                    deck_v = str(r.get(cols.get("deck",""), default_deck)).strip() or default_deck
-                    tags_v = str(r.get(cols.get("tags",""), "")).strip()
+                # Respostas (3 campos UM ABAIXO DO OUTRO)
+                if mostrar_respostas:
+                    st.markdown("<hr class='soft'/>", unsafe_allow_html=True)
 
-                    card_type = "CLOZE" if (cloze_v and "{{c" in cloze_v) else "BASIC"
-                    if not front_v:
-                        continue
-                    cid = flash_upsert_card(deck_v, assunto_v, tags_v, front_v, back_v, cloze_v, card_type, "CSV")
-                    if cid:
-                        flash_ensure_queue(user_id, int(cid))
-                        imported += 1
+                    st.markdown("<div class='answer-box'>", unsafe_allow_html=True)
+                    st.markdown("<div class='answer-title'>Resposta 1</div>", unsafe_allow_html=True)
+                    st.write(back1 or "—")
+                    st.markdown("</div>", unsafe_allow_html=True)
 
-                audit(user_id, "IMPORT_FLASH_CSV", "flashcards", None, f"imported={imported}")
-                st.success(f"Importados: {imported} (duplicatas ignoradas por hash).")
-                st.rerun()
+                    st.markdown("<div class='answer-box'>", unsafe_allow_html=True)
+                    st.markdown("<div class='answer-title'>Resposta 2</div>", unsafe_allow_html=True)
+                    st.write(back2 or "—")
+                    st.markdown("</div>", unsafe_allow_html=True)
 
-    with t3:
-        st.markdown("### Estatísticas de Flashcards")
-        rows = fetch_all("""
-            SELECT f.assunto,
-                   COUNT(*) as total_cards,
-                   SUM(CASE WHEN fr.last_result='KNEW' THEN 1 ELSE 0 END) as knew,
-                   SUM(CASE WHEN fr.last_result='DONTKNOW' THEN 1 ELSE 0 END) as dontknow,
-                   SUM(CASE WHEN DATE(fr.due_date) <= DATE(?) AND fr.status='PENDENTE' THEN 1 ELSE 0 END) as due_now
-            FROM flashcards f
-            LEFT JOIN flash_reviews fr ON fr.card_id=f.id AND fr.user_id=?
-            GROUP BY f.assunto
-            ORDER BY total_cards DESC
-        """, (today_str(), user_id))
+                    st.markdown("<div class='answer-box'>", unsafe_allow_html=True)
+                    st.markdown("<div class='answer-title'>Resposta 3</div>", unsafe_allow_html=True)
+                    st.write(back3 or "—")
+                    st.markdown("</div>", unsafe_allow_html=True)
 
-        if not rows:
-            st.info("Sem flashcards ainda.")
-        else:
-            df = pd.DataFrame(rows, columns=["assunto","total_cards","knew","dontknow","due_now"])
-            st.dataframe(df, use_container_width=True, hide_index=True)
+                st.markdown("<hr class='soft'/>", unsafe_allow_html=True)
+                st.markdown("### Como foi?")
+                b1, b2, b3, b4 = st.columns(4)
+
+                if b1.button("😊 Facinho", use_container_width=True, key="fc_facinho"):
+                    res = flash_mark_result(user_id, int(fr_id), "FACINHO")
+                    if res:
+                        due2, nxt = res
+                        st.success(f"Próxima revisão: {due2} (intervalo {nxt} dias)")
+                    st.rerun()
+
+                if b2.button("🙂 Mediano", use_container_width=True, key="fc_mediano"):
+                    res = flash_mark_result(user_id, int(fr_id), "MEDIANO")
+                    if res:
+                        due2, nxt = res
+                        st.success(f"Próxima revisão: {due2} (intervalo {nxt} dias)")
+                    st.rerun()
+
+                if b3.button("😕 Não sabia", use_container_width=True, key="fc_nao_sabia"):
+                    res = flash_mark_result(user_id, int(fr_id), "NAO_SABIA")
+                    if res:
+                        due2, nxt = res
+                        st.warning(f"Próxima revisão: {due2} (intervalo {nxt} dias)")
+                    st.rerun()
+
+                if b4.button("🥶 Impossível lembrar", use_container_width=True, key="fc_impossivel"):
+                    res = flash_mark_result(user_id, int(fr_id), "IMPOSSIVEL")
+                    if res:
+                        due2, nxt = res
+                        st.error(f"Próxima revisão: {due2} (intervalo {nxt} dias)")
+                    st.rerun()
 
 
 # =========================================================
@@ -1783,7 +1708,6 @@ elif menu == "Flashcards":
 # =========================================================
 elif menu == "Revisões":
     st.subheader("🗂️ Fila de revisões")
-
     tab1, tab2 = st.tabs(["Pendentes", "Concluídas"])
 
     with tab1:
@@ -1806,28 +1730,20 @@ elif menu == "Revisões":
             with c1:
                 rid = st.number_input("ID", min_value=1, step=1, value=int(df.iloc[0]["id"]), key="rev_id")
             with c2:
-                if st.button("✅ Concluir", use_container_width=True):
+                if st.button("✅ Concluir", use_container_width=True, key="rev_done"):
                     execute("""
                         UPDATE reviews SET status='CONCLUIDA', completed_at=?
                         WHERE id=? AND user_id=?
                     """, (now_str(), int(rid), user_id))
-                    audit(user_id, "COMPLETE_REVIEW", "reviews", int(rid), "done")
+                    audit(user_id, "CONCLUIR_REVISAO", "reviews", int(rid), "done")
                     st.success("Concluída!")
                     st.rerun()
             with c3:
-                if st.button("🗑️ Excluir", use_container_width=True):
+                if st.button("🗑️ Excluir", use_container_width=True, key="rev_del"):
                     execute("DELETE FROM reviews WHERE id=? AND user_id=?", (int(rid), user_id))
-                    audit(user_id, "DELETE_REVIEW", "reviews", int(rid), "deleted")
+                    audit(user_id, "EXCLUIR_REVISAO", "reviews", int(rid), "deleted")
                     st.success("Excluída!")
                     st.rerun()
-
-            st.divider()
-            st.markdown("### Criar revisão manual")
-            subj_id, subj_name, topic_id, topic_name = subject_topic_picker("manual_review")
-            acc = st.number_input("Último % (opcional)", min_value=0.0, max_value=100.0, value=85.0, step=1.0, key="man_rev_acc")
-            if st.button("Criar revisão manual", type="primary"):
-                rid, due, days = add_review(user_id, subj_id, topic_id, float(acc), "MANUAL", 0)
-                st.success(f"Criada revisão #{rid} para {due} (+{days} dias).")
 
     with tab2:
         rows = fetch_all("""
@@ -1848,11 +1764,11 @@ elif menu == "Revisões":
 
 
 # =========================================================
-# PAGE: DASHBOARD (BI completo + ranking)
+# PAGE: DASHBOARD
 # =========================================================
 elif menu == "Dashboard":
     st.subheader("📊 Dashboard BI")
-    days_back = st.slider("Janela (dias)", 7, 365, 90)
+    days_back = st.slider("Janela (dias)", 7, 365, 90, key="dash_days")
 
     dfq = df_question_logs(user_id, days_back=days_back)
     dfs = df_study_sessions(user_id, days_back=days_back)
@@ -1872,18 +1788,7 @@ elif menu == "Dashboard":
     col4.metric("Tempo", f"{total_min:.1f} min")
     col5.metric("Simulados", f"{total_exams} (média {avg_exam_acc:.1f}%)")
 
-    st.divider()
-
-    # ===== NOVO: desempenho por ASSUNTO (Banco de Questões) =====
-    st.markdown("### 🏷️ Banco de Questões — desempenho por ASSUNTO")
-    stats = stats_attempts_window_by_assunto(user_id, days_back=days_back)
-    if not stats:
-        st.info("Sem tentativas no Banco de Questões nesse período.")
-    else:
-        dfA = pd.DataFrame(stats, columns=["assunto","total","acertos","accuracy_%"])
-        st.dataframe(dfA, use_container_width=True, hide_index=True)
-
-    st.divider()
+    st.markdown("<hr class='soft'/>", unsafe_allow_html=True)
 
     cA, cB = st.columns(2)
     with cA:
@@ -1911,48 +1816,6 @@ elif menu == "Dashboard":
             plt.tight_layout()
             st.pyplot(fig)
 
-    st.divider()
-
-    cC, cD = st.columns(2)
-    with cC:
-        st.markdown("### Questões por matéria")
-        if dfq.empty:
-            st.info("Sem dados.")
-        else:
-            by_subj = dfq.groupby("subject")["questions"].sum().sort_values(ascending=False).head(12)
-            fig = plt.figure()
-            plt.bar(by_subj.index, by_subj.values)
-            plt.xticks(rotation=45, ha="right")
-            plt.tight_layout()
-            st.pyplot(fig)
-
-    with cD:
-        st.markdown("### Tempo por matéria (min)")
-        if dfs.empty:
-            st.info("Sem dados.")
-        else:
-            by_subj = (dfs.groupby("subject")["duration_seconds"].sum().sort_values(ascending=False).head(12) / 60.0)
-            fig = plt.figure()
-            plt.bar(by_subj.index, by_subj.values)
-            plt.xticks(rotation=45, ha="right")
-            plt.tight_layout()
-            st.pyplot(fig)
-
-    st.divider()
-
-    st.markdown("### Ranking (prioridades)")
-    if dfq.empty:
-        st.info("Sem dados suficientes.")
-    else:
-        # ranking por: menor % médio + maior volume = prioridade
-        agg = dfq.groupby("subject").agg(
-            questions=("questions","sum"),
-            avg_accuracy=("accuracy","mean")
-        ).reset_index()
-        agg["priority_score"] = (100 - agg["avg_accuracy"]) * (agg["questions"].clip(lower=1) ** 0.5)
-        agg = agg.sort_values("priority_score", ascending=False)
-        st.dataframe(agg, use_container_width=True, hide_index=True)
-
 
 # =========================================================
 # PAGE: METAS & ALERTAS
@@ -1964,21 +1827,22 @@ elif menu == "Metas & Alertas":
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        new_q = st.number_input("Meta diária de questões", min_value=0, step=10, value=int(q_goal))
+        new_q = st.number_input("Meta diária de questões", min_value=0, step=10, value=int(q_goal), key="goal_q")
     with c2:
-        new_min = st.number_input("Meta diária de tempo (min)", min_value=0, step=10, value=int(min_goal))
+        new_min = st.number_input("Meta diária de tempo (min)", min_value=0, step=10, value=int(min_goal), key="goal_min")
     with c3:
-        new_exams = st.number_input("Meta de simulados por mês", min_value=0, step=1, value=int(exams_goal))
+        new_exams = st.number_input("Meta de simulados por mês", min_value=0, step=1, value=int(exams_goal), key="goal_ex")
 
-    st.divider()
+    st.markdown("<hr class='soft'/>", unsafe_allow_html=True)
+
     st.markdown("### Alertas inteligentes (configurações)")
     c4, c5 = st.columns(2)
     with c4:
-        new_inactive = st.number_input("Alertar matéria parada após (dias)", min_value=1, step=1, value=int(inactive_days))
+        new_inactive = st.number_input("Alertar matéria parada após (dias)", min_value=1, step=1, value=int(inactive_days), key="pref_inactive")
     with c5:
-        new_drop = st.number_input("Alertar queda de % (pontos) em 14 dias", min_value=1.0, step=1.0, value=float(drop_acc))
+        new_drop = st.number_input("Alertar queda de % (pontos) em 14 dias", min_value=1.0, step=1.0, value=float(drop_acc), key="pref_drop")
 
-    if st.button("Salvar metas e alertas", type="primary"):
+    if st.button("Salvar metas e alertas", type="primary", key="save_goals_prefs"):
         set_goals(user_id, int(new_q), int(new_min), int(new_exams))
         set_prefs(user_id, int(new_inactive), float(new_drop))
         st.success("Salvo.")
@@ -1993,245 +1857,75 @@ elif menu == "Relatórios (PDF)":
 
     c1, c2 = st.columns(2)
     with c1:
-        d1 = st.date_input("Data inicial", value=date.today() - timedelta(days=30))
+        d1 = st.date_input("Data inicial", value=date.today() - timedelta(days=30), key="pdf_d1")
     with c2:
-        d2 = st.date_input("Data final", value=date.today())
+        d2 = st.date_input("Data final", value=date.today(), key="pdf_d2")
 
     if d2 < d1:
         st.error("Data final não pode ser menor que a inicial.")
     else:
-        if st.button("Gerar PDF", type="primary"):
+        if st.button("Gerar PDF", type="primary", key="pdf_btn"):
             try:
                 pdf_bytes = generate_pdf_report(user_id, username, d1, d2)
                 st.download_button(
                     "⬇️ Baixar PDF",
                     data=pdf_bytes,
                     file_name=f"{APP_NAME}_relatorio_{d1.isoformat()}_a_{d2.isoformat()}.pdf",
-                    mime="application/pdf"
+                    mime="application/pdf",
+                    key="pdf_dl"
                 )
-                audit(user_id, "GENERATE_PDF", "report", None, f"{d1}..{d2}")
+                audit(user_id, "GERAR_PDF", "report", None, f"{d1}..{d2}")
                 st.success("PDF gerado.")
             except Exception as e:
                 st.error(f"Erro ao gerar PDF: {e}")
 
 
 # =========================================================
-# PAGE: GERENCIAR (editar/excluir)
+# PAGE: GERENCIAR
 # =========================================================
 elif menu == "Gerenciar (Editar/Excluir)":
     st.subheader("🧰 Gerenciar dados (editar / excluir)")
-
     t1, t2, t3, t4 = st.tabs(["Questões", "Sessões", "Simulados", "Revisões"])
 
-    # ---- QUESTOES
     with t1:
         dfq = df_question_logs(user_id, days_back=3650)
         if dfq.empty:
             st.info("Sem registros.")
         else:
             st.dataframe(dfq.drop(columns=["date"], errors="ignore"), use_container_width=True, hide_index=True)
-            st.markdown("#### Editar / Excluir por ID")
-            rid = st.number_input("ID do registro", min_value=1, step=1, value=int(dfq.iloc[0]["id"]))
-            row = fetch_one("""
-                SELECT subject_id, topic_id, COALESCE(tags,''), questions, correct, COALESCE(source,''), COALESCE(notes,'')
-                FROM question_logs WHERE id=? AND user_id=?
-            """, (int(rid), user_id))
-            if row:
-                subject_id, topic_id, tags, questions, correct, source, notes = row
-                st.caption("Atualize os campos e clique em **Salvar edição**.")
-                # pick subject/topic for edit
-                subjects = get_subjects()
-                subj_map = {s["name"]: s["id"] for s in subjects}
-                subj_names = list(subj_map.keys())
-                current_subj_name = fetch_one("SELECT name FROM subjects WHERE id=?", (subject_id,))[0]
-                subj_idx = subj_names.index(current_subj_name) if current_subj_name in subj_names else 0
-                new_subj_name = st.selectbox("Matéria", subj_names, index=subj_idx, key="edit_q_subj")
-                new_subject_id = subj_map[new_subj_name]
+            rid = st.number_input("ID do registro", min_value=1, step=1, value=int(dfq.iloc[0]["id"]), key="del_q_id")
+            if st.button("🗑️ Excluir registro", use_container_width=True, key="del_q_btn"):
+                execute("DELETE FROM question_logs WHERE id=? AND user_id=?", (int(rid), user_id))
+                audit(user_id, "EXCLUIR_QUESTOES", "question_logs", int(rid), "deleted")
+                st.success("Excluído.")
+                st.rerun()
 
-                topics = get_topics(new_subject_id)
-                topic_options = ["(Sem subtema)"] + [t["name"] for t in topics]
-                current_topic_name = "(Sem subtema)"
-                if topic_id:
-                    r2 = fetch_one("SELECT name FROM topics WHERE id=?", (topic_id,))
-                    if r2:
-                        current_topic_name = r2[0]
-                topic_idx = topic_options.index(current_topic_name) if current_topic_name in topic_options else 0
-                new_topic_name = st.selectbox("Subtema", topic_options, index=topic_idx, key="edit_q_topic")
-                new_topic_id = None
-                if new_topic_name != "(Sem subtema)":
-                    for t in topics:
-                        if t["name"] == new_topic_name:
-                            new_topic_id = t["id"]
-                            break
-
-                c1, c2 = st.columns(2)
-                with c1:
-                    new_questions = st.number_input("Questões", min_value=1, step=1, value=int(questions), key="edit_q_questions")
-                with c2:
-                    new_correct = st.number_input("Acertos", min_value=0, step=1, value=int(correct), key="edit_q_correct")
-                new_tags = st.text_input("Tags", value=tags, key="edit_q_tags")
-                new_source = st.text_input("Fonte", value=source, key="edit_q_source")
-                new_notes = st.text_area("Observações", value=notes, key="edit_q_notes")
-
-                cA, cB = st.columns(2)
-                if cA.button("💾 Salvar edição", type="primary", use_container_width=True):
-                    if int(new_correct) > int(new_questions):
-                        st.error("Acertos não pode ser maior que questões.")
-                    else:
-                        acc = (int(new_correct) / int(new_questions)) * 100.0
-                        execute("""
-                            UPDATE question_logs
-                            SET subject_id=?, topic_id=?, tags=?, questions=?, correct=?, accuracy=?, source=?, notes=?
-                            WHERE id=? AND user_id=?
-                        """, (new_subject_id, new_topic_id, (new_tags or "").strip() or None,
-                              int(new_questions), int(new_correct), float(acc),
-                              (new_source or "").strip() or None,
-                              (new_notes or "").strip() or None,
-                              int(rid), user_id))
-                        audit(user_id, "UPDATE_QUESTIONS", "question_logs", int(rid), f"acc={acc:.1f}")
-                        st.success("Atualizado.")
-                        st.rerun()
-
-                if cB.button("🗑️ Excluir registro", use_container_width=True):
-                    execute("DELETE FROM question_logs WHERE id=? AND user_id=?", (int(rid), user_id))
-                    audit(user_id, "DELETE_QUESTIONS", "question_logs", int(rid), "deleted")
-                    st.success("Excluído.")
-                    st.rerun()
-            else:
-                st.error("ID não encontrado.")
-
-    # ---- SESSOES
     with t2:
         dfs = df_study_sessions(user_id, days_back=3650)
         if dfs.empty:
             st.info("Sem sessões.")
         else:
             st.dataframe(dfs.drop(columns=["date"], errors="ignore"), use_container_width=True, hide_index=True)
-            sid = st.number_input("ID da sessão", min_value=1, step=1, value=int(dfs.iloc[0]["id"]), key="sess_id")
-            row = fetch_one("""
-                SELECT subject_id, topic_id, COALESCE(tags,''), duration_seconds, session_type, COALESCE(notes,'')
-                FROM study_sessions WHERE id=? AND user_id=?
-            """, (int(sid), user_id))
-            if row:
-                subject_id, topic_id, tags, dur, stype, notes = row
-                subjects = get_subjects()
-                subj_map = {s["name"]: s["id"] for s in subjects}
-                subj_names = list(subj_map.keys())
-                current_subj_name = fetch_one("SELECT name FROM subjects WHERE id=?", (subject_id,))[0]
-                subj_idx = subj_names.index(current_subj_name) if current_subj_name in subj_names else 0
-                new_subj_name = st.selectbox("Matéria", subj_names, index=subj_idx, key="edit_s_subj")
-                new_subject_id = subj_map[new_subj_name]
+            sid = st.number_input("ID da sessão", min_value=1, step=1, value=int(dfs.iloc[0]["id"]), key="del_sess_id")
+            if st.button("🗑️ Excluir sessão", use_container_width=True, key="del_sess_btn"):
+                execute("DELETE FROM study_sessions WHERE id=? AND user_id=?", (int(sid), user_id))
+                audit(user_id, "EXCLUIR_SESSAO", "study_sessions", int(sid), "deleted")
+                st.success("Sessão excluída.")
+                st.rerun()
 
-                topics = get_topics(new_subject_id)
-                topic_options = ["(Sem subtema)"] + [t["name"] for t in topics]
-                current_topic_name = "(Sem subtema)"
-                if topic_id:
-                    r2 = fetch_one("SELECT name FROM topics WHERE id=?", (topic_id,))
-                    if r2:
-                        current_topic_name = r2[0]
-                topic_idx = topic_options.index(current_topic_name) if current_topic_name in topic_options else 0
-                new_topic_name = st.selectbox("Subtema", topic_options, index=topic_idx, key="edit_s_topic")
-                new_topic_id = None
-                if new_topic_name != "(Sem subtema)":
-                    for t in topics:
-                        if t["name"] == new_topic_name:
-                            new_topic_id = t["id"]
-                            break
-
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    new_minutes = st.number_input("Duração (min)", min_value=1, step=5, value=max(1, int(dur//60)), key="edit_s_min")
-                with c2:
-                    new_stype = st.selectbox("Tipo", ["ESTUDO", "POMODORO"], index=0 if stype == "ESTUDO" else 1, key="edit_s_type")
-                with c3:
-                    new_tags = st.text_input("Tags", value=tags, key="edit_s_tags")
-                new_notes = st.text_area("Observações", value=notes, key="edit_s_notes")
-
-                cA, cB = st.columns(2)
-                if cA.button("💾 Salvar sessão", type="primary", use_container_width=True):
-                    execute("""
-                        UPDATE study_sessions
-                        SET subject_id=?, topic_id=?, tags=?, duration_seconds=?, session_type=?, notes=?
-                        WHERE id=? AND user_id=?
-                    """, (new_subject_id, new_topic_id, (new_tags or "").strip() or None,
-                          int(new_minutes)*60, new_stype, (new_notes or "").strip() or None,
-                          int(sid), user_id))
-                    audit(user_id, "UPDATE_SESSION", "study_sessions", int(sid), f"min={new_minutes}")
-                    st.success("Sessão atualizada.")
-                    st.rerun()
-                if cB.button("🗑️ Excluir sessão", use_container_width=True):
-                    execute("DELETE FROM study_sessions WHERE id=? AND user_id=?", (int(sid), user_id))
-                    audit(user_id, "DELETE_SESSION", "study_sessions", int(sid), "deleted")
-                    st.success("Sessão excluída.")
-                    st.rerun()
-            else:
-                st.error("ID não encontrado.")
-
-    # ---- SIMULADOS
     with t3:
         dfe = df_exams(user_id, days_back=3650)
         if dfe.empty:
             st.info("Sem simulados.")
         else:
             st.dataframe(dfe.drop(columns=["date"], errors="ignore"), use_container_width=True, hide_index=True)
-            eid = st.number_input("ID do simulado", min_value=1, step=1, value=int(dfe.iloc[0]["id"]), key="exam_id_manage")
-            row = fetch_one("""
-                SELECT title, subject_id, total_questions, correct, duration_seconds, COALESCE(notes,'')
-                FROM exams WHERE id=? AND user_id=?
-            """, (int(eid), user_id))
-            if row:
-                title, subject_id, total_q, correct, dur, notes = row
-                title2 = st.text_input("Título", value=title, key="edit_e_title")
+            eid = st.number_input("ID do simulado", min_value=1, step=1, value=int(dfe.iloc[0]["id"]), key="del_exam_id")
+            if st.button("🗑️ Excluir simulado", use_container_width=True, key="del_exam_btn"):
+                execute("DELETE FROM exams WHERE id=? AND user_id=?", (int(eid), user_id))
+                audit(user_id, "EXCLUIR_SIMULADO", "exams", int(eid), "deleted")
+                st.success("Simulado excluído.")
+                st.rerun()
 
-                subjects = get_subjects()
-                subj_opts = [{"id": None, "name": "(Sem matéria)"}] + subjects
-                subj_names = [x["name"] for x in subj_opts]
-                current_name = "(Sem matéria)"
-                if subject_id:
-                    r = fetch_one("SELECT name FROM subjects WHERE id=?", (subject_id,))
-                    if r:
-                        current_name = r[0]
-                idx = subj_names.index(current_name) if current_name in subj_names else 0
-                new_subj_name = st.selectbox("Matéria", subj_names, index=idx, key="edit_e_subj")
-                new_subject_id = None
-                for o in subj_opts:
-                    if o["name"] == new_subj_name:
-                        new_subject_id = o["id"]
-                        break
-
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    total2 = st.number_input("Total", min_value=1, step=1, value=int(total_q), key="edit_e_total")
-                with c2:
-                    corr2 = st.number_input("Acertos", min_value=0, step=1, value=int(correct), key="edit_e_corr")
-                with c3:
-                    min2 = st.number_input("Duração (min)", min_value=0, step=10, value=int(dur//60), key="edit_e_min")
-                notes2 = st.text_area("Observações", value=notes, key="edit_e_notes")
-
-                cA, cB = st.columns(2)
-                if cA.button("💾 Salvar simulado", type="primary", use_container_width=True):
-                    if int(corr2) > int(total2):
-                        st.error("Acertos não pode ser maior que total.")
-                    else:
-                        acc = (int(corr2) / int(total2)) * 100.0
-                        execute("""
-                            UPDATE exams
-                            SET title=?, subject_id=?, total_questions=?, correct=?, accuracy=?, duration_seconds=?, notes=?
-                            WHERE id=? AND user_id=?
-                        """, (title2.strip(), new_subject_id, int(total2), int(corr2), float(acc), int(min2)*60,
-                              (notes2 or "").strip() or None, int(eid), user_id))
-                        audit(user_id, "UPDATE_EXAM", "exams", int(eid), f"acc={acc:.1f}")
-                        st.success("Simulado atualizado.")
-                        st.rerun()
-                if cB.button("🗑️ Excluir simulado", use_container_width=True):
-                    execute("DELETE FROM exams WHERE id=? AND user_id=?", (int(eid), user_id))
-                    audit(user_id, "DELETE_EXAM", "exams", int(eid), "deleted")
-                    st.success("Simulado excluído.")
-                    st.rerun()
-            else:
-                st.error("ID não encontrado.")
-
-    # ---- REVISOES
     with t4:
         rows = fetch_all("""
             SELECT r.id, r.due_date, r.status, s.name, COALESCE(t.name,'(Sem subtema)'),
@@ -2247,30 +1941,12 @@ elif menu == "Gerenciar (Editar/Excluir)":
         else:
             df = pd.DataFrame(rows, columns=["id","due_date","status","subject","topic","origin","last_accuracy"])
             st.dataframe(df, use_container_width=True, hide_index=True)
-
-            rid = st.number_input("ID da revisão", min_value=1, step=1, value=int(df.iloc[0]["id"]), key="edit_rev_id")
-            row = fetch_one("SELECT due_date, status FROM reviews WHERE id=? AND user_id=?", (int(rid), user_id))
-            if row:
-                due, status = row
-                new_due = st.date_input("Nova data", value=datetime.strptime(due, "%Y-%m-%d").date(), key="edit_rev_due")
-                new_status = st.selectbox("Status", ["PENDENTE", "CONCLUIDA"], index=0 if status == "PENDENTE" else 1, key="edit_rev_status")
-                cA, cB = st.columns(2)
-                if cA.button("💾 Salvar revisão", type="primary", use_container_width=True):
-                    execute("""
-                        UPDATE reviews
-                        SET due_date=?, status=?, completed_at=CASE WHEN ?='CONCLUIDA' THEN COALESCE(completed_at, ?) ELSE NULL END
-                        WHERE id=? AND user_id=?
-                    """, (new_due.isoformat(), new_status, new_status, now_str(), int(rid), user_id))
-                    audit(user_id, "UPDATE_REVIEW", "reviews", int(rid), f"due={new_due}, status={new_status}")
-                    st.success("Revisão atualizada.")
-                    st.rerun()
-                if cB.button("🗑️ Excluir revisão", use_container_width=True):
-                    execute("DELETE FROM reviews WHERE id=? AND user_id=?", (int(rid), user_id))
-                    audit(user_id, "DELETE_REVIEW", "reviews", int(rid), "deleted")
-                    st.success("Revisão excluída.")
-                    st.rerun()
-            else:
-                st.error("ID não encontrado.")
+            rid = st.number_input("ID da revisão", min_value=1, step=1, value=int(df.iloc[0]["id"]), key="del_rev_id")
+            if st.button("🗑️ Excluir revisão", use_container_width=True, key="del_rev_btn"):
+                execute("DELETE FROM reviews WHERE id=? AND user_id=?", (int(rid), user_id))
+                audit(user_id, "EXCLUIR_REVISAO", "reviews", int(rid), "deleted")
+                st.success("Revisão excluída.")
+                st.rerun()
 
 
 # =========================================================
@@ -2278,15 +1954,13 @@ elif menu == "Gerenciar (Editar/Excluir)":
 # =========================================================
 elif menu == "Exportar/Importar CSV":
     st.subheader("🔁 Exportar / Importar CSV (backup e migração)")
-    st.caption("Exporta seus dados para CSV e permite reimportar (cuidado para não duplicar).")
-
     t1, t2 = st.tabs(["Exportar", "Importar"])
 
     with t1:
-        st.markdown("### Exportar")
         dfq = df_question_logs(user_id, days_back=3650)
         dfs = df_study_sessions(user_id, days_back=3650)
         dfe = df_exams(user_id, days_back=3650)
+
         dfr = pd.DataFrame(fetch_all("""
             SELECT r.id, r.due_date, r.status, s.name, COALESCE(t.name,'(Sem subtema)'),
                    r.origin_type, COALESCE(r.last_accuracy,0), r.created_at, COALESCE(r.completed_at,'')
@@ -2296,18 +1970,14 @@ elif menu == "Exportar/Importar CSV":
             WHERE r.user_id=?
         """, (user_id,)), columns=["id","due_date","status","subject","topic","origin_type","last_accuracy","created_at","completed_at"])
 
-        # ===== NOVO: export banco de questões e flashcards =====
-        df_qb = pd.DataFrame(fetch_all("""
-            SELECT id, assunto, COALESCE(subassunto,''), enunciado, COALESCE(alternativas,''), COALESCE(gabarito,''), COALESCE(explicacao,''), COALESCE(source,''), created_at
-            FROM question_bank
-        """), columns=["id","assunto","subassunto","enunciado","alternativas","gabarito","explicacao","source","created_at"])
-
         df_fc = pd.DataFrame(fetch_all("""
-            SELECT id, COALESCE(deck,''), assunto, COALESCE(tags,''), f_front, COALESCE(f_back,''), COALESCE(f_cloze,''), card_type, COALESCE(source,''), created_at
+            SELECT id, COALESCE(deck,''), assunto, COALESCE(tags,''), f_front,
+                   COALESCE(f_back1,''), COALESCE(f_back2,''), COALESCE(f_back3,''),
+                   card_type, COALESCE(source,''), created_at
             FROM flashcards
-        """), columns=["id","deck","assunto","tags","front","back","cloze","card_type","source","created_at"])
+        """), columns=["id","deck","assunto","tags","frente","resposta1","resposta2","resposta3","tipo","fonte","created_at"])
 
-        c1, c2, c3, c4, c5, c6 = st.columns(6)
+        c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
             st.download_button("⬇️ Questões CSV", dfq.to_csv(index=False).encode("utf-8"), "questoes.csv", "text/csv")
         with c2:
@@ -2317,152 +1987,11 @@ elif menu == "Exportar/Importar CSV":
         with c4:
             st.download_button("⬇️ Revisões CSV", dfr.to_csv(index=False).encode("utf-8"), "revisoes.csv", "text/csv")
         with c5:
-            st.download_button("⬇️ Banco Questões", df_qb.to_csv(index=False).encode("utf-8"), "banco_questoes.csv", "text/csv")
-        with c6:
-            st.download_button("⬇️ Flashcards", df_fc.to_csv(index=False).encode("utf-8"), "flashcards.csv", "text/csv")
+            st.download_button("⬇️ Flashcards CSV", df_fc.to_csv(index=False).encode("utf-8"), "flashcards.csv", "text/csv")
 
     with t2:
-        st.markdown("### Importar (opcional)")
-        st.warning("Importação é útil para recuperar backup, mas pode duplicar dados. Use com cuidado.")
-        uploaded = st.file_uploader("Envie um CSV (questões/sessões/simulados/revisões)", type=["csv"])
-        mode = st.selectbox("Tipo do CSV", ["questoes", "sessoes", "simulados", "revisoes", "banco_questoes", "flashcards"])
-        if uploaded is not None:
-            df = pd.read_csv(uploaded)
-            st.dataframe(df.head(20), use_container_width=True)
-            if st.button("Importar agora", type="primary"):
-                try:
-                    if mode == "questoes":
-                        for _, r in df.iterrows():
-                            subj_name = str(r.get("subject","")).strip()
-                            if not subj_name:
-                                continue
-                            execute("INSERT OR IGNORE INTO subjects (name, created_at) VALUES (?, ?)", (subj_name, now_str()))
-                            sid = fetch_one("SELECT id FROM subjects WHERE name=?", (subj_name,))[0]
-                            topic_name = str(r.get("topic","(Sem subtema)")).strip()
-                            tid = None
-                            if topic_name and topic_name != "(Sem subtema)":
-                                execute("INSERT OR IGNORE INTO topics (subject_id, name, created_at) VALUES (?, ?, ?)", (sid, topic_name, now_str()))
-                                tid = fetch_one("SELECT id FROM topics WHERE subject_id=? AND name=?", (sid, topic_name))[0]
-                            q = safe_int(r.get("questions", 0), 0)
-                            crr = safe_int(r.get("correct", 0), 0)
-                            if q <= 0 or crr < 0 or crr > q:
-                                continue
-                            acc = (crr/q)*100.0
-                            execute("""
-                                INSERT INTO question_logs (user_id, subject_id, topic_id, tags, questions, correct, accuracy, source, notes, created_at)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """, (user_id, sid, tid, str(r.get("tags","")).strip() or None, q, crr, acc,
-                                  str(r.get("source","")).strip() or None,
-                                  str(r.get("notes","")).strip() or None,
-                                  str(r.get("created_at", now_str()))))
-                        audit(user_id, "IMPORT_CSV", "question_logs", None, "import questoes")
-                        st.success("Importação de questões concluída.")
-                    elif mode == "sessoes":
-                        for _, r in df.iterrows():
-                            subj_name = str(r.get("subject","")).strip()
-                            if not subj_name:
-                                continue
-                            execute("INSERT OR IGNORE INTO subjects (name, created_at) VALUES (?, ?)", (subj_name, now_str()))
-                            sid = fetch_one("SELECT id FROM subjects WHERE name=?", (subj_name,))[0]
-                            topic_name = str(r.get("topic","(Sem subtema)")).strip()
-                            tid = None
-                            if topic_name and topic_name != "(Sem subtema)":
-                                execute("INSERT OR IGNORE INTO topics (subject_id, name, created_at) VALUES (?, ?, ?)", (sid, topic_name, now_str()))
-                                tid = fetch_one("SELECT id FROM topics WHERE subject_id=? AND name=?", (sid, topic_name))[0]
-                            dur = safe_int(r.get("duration_seconds", 0), 0)
-                            if dur <= 0:
-                                mins = safe_int(r.get("minutes", 0), 0)
-                                dur = mins*60
-                            if dur <= 0:
-                                continue
-                            execute("""
-                                INSERT INTO study_sessions (user_id, subject_id, topic_id, tags, duration_seconds, session_type, notes, created_at)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                            """, (user_id, sid, tid, str(r.get("tags","")).strip() or None, dur,
-                                  str(r.get("session_type","ESTUDO")).strip() or "ESTUDO",
-                                  str(r.get("notes","")).strip() or None,
-                                  str(r.get("created_at", now_str()))))
-                        audit(user_id, "IMPORT_CSV", "study_sessions", None, "import sessoes")
-                        st.success("Importação de sessões concluída.")
-                    elif mode == "simulados":
-                        for _, r in df.iterrows():
-                            title = str(r.get("title","Simulado")).strip() or "Simulado"
-                            subj_name = str(r.get("subject","(Sem matéria)")).strip()
-                            sid = None
-                            if subj_name and subj_name != "(Sem matéria)":
-                                execute("INSERT OR IGNORE INTO subjects (name, created_at) VALUES (?, ?)", (subj_name, now_str()))
-                                sid = fetch_one("SELECT id FROM subjects WHERE name=?", (subj_name,))[0]
-                            total = safe_int(r.get("total_questions", 0), 0)
-                            corr = safe_int(r.get("correct", 0), 0)
-                            if total <= 0 or corr < 0 or corr > total:
-                                continue
-                            acc = (corr/total)*100.0
-                            dur = safe_int(r.get("duration_seconds", 0), 0)
-                            execute("""
-                                INSERT INTO exams (user_id, title, subject_id, total_questions, correct, accuracy, duration_seconds, notes, created_at)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """, (user_id, title, sid, total, corr, acc, dur,
-                                  str(r.get("notes","")).strip() or None,
-                                  str(r.get("created_at", now_str()))))
-                        audit(user_id, "IMPORT_CSV", "exams", None, "import simulados")
-                        st.success("Importação de simulados concluída.")
-                    elif mode == "revisoes":
-                        for _, r in df.iterrows():
-                            subj_name = str(r.get("subject","")).strip()
-                            if not subj_name:
-                                continue
-                            execute("INSERT OR IGNORE INTO subjects (name, created_at) VALUES (?, ?)", (subj_name, now_str()))
-                            sid = fetch_one("SELECT id FROM subjects WHERE name=?", (subj_name,))[0]
-                            topic_name = str(r.get("topic","(Sem subtema)")).strip()
-                            tid = None
-                            if topic_name and topic_name != "(Sem subtema)":
-                                execute("INSERT OR IGNORE INTO topics (subject_id, name, created_at) VALUES (?, ?, ?)", (sid, topic_name, now_str()))
-                                tid = fetch_one("SELECT id FROM topics WHERE subject_id=? AND name=?", (sid, topic_name))[0]
-                            due = str(r.get("due_date", today_str()))
-                            status = str(r.get("status","PENDENTE")).strip().upper()
-                            acc = safe_float(r.get("last_accuracy", 0), 0.0)
-                            execute("""
-                                INSERT INTO reviews (user_id, subject_id, topic_id, due_date, status, origin_type, origin_id, last_accuracy, created_at, completed_at)
-                                VALUES (?, ?, ?, ?, ?, 'MANUAL', 0, ?, ?, ?)
-                            """, (user_id, sid, tid, due, "CONCLUIDA" if status == "CONCLUIDA" else "PENDENTE",
-                                  float(acc), now_str(), now_str() if status == "CONCLUIDA" else None))
-                        audit(user_id, "IMPORT_CSV", "reviews", None, "import revisoes")
-                        st.success("Importação de revisões concluída.")
-                    elif mode == "banco_questoes":
-                        count = 0
-                        for _, r in df.iterrows():
-                            qb_upsert_question(
-                                str(r.get("assunto","")).strip(),
-                                str(r.get("subassunto","")).strip(),
-                                str(r.get("enunciado","")).strip(),
-                                str(r.get("alternativas","")).strip() or None,
-                                str(r.get("gabarito","")).strip() or None,
-                                str(r.get("explicacao","")).strip() or None,
-                                str(r.get("source","")).strip() or None,
-                            )
-                            count += 1
-                        audit(user_id, "IMPORT_CSV", "question_bank", None, f"rows={count}")
-                        st.success(f"Importação banco de questões concluída ({count}).")
-                    elif mode == "flashcards":
-                        count = 0
-                        for _, r in df.iterrows():
-                            cid = flash_upsert_card(
-                                str(r.get("deck","")).strip(),
-                                str(r.get("assunto","Geral")).strip() or "Geral",
-                                str(r.get("tags","")).strip(),
-                                str(r.get("front","")).strip(),
-                                str(r.get("back","")).strip(),
-                                str(r.get("cloze","")).strip(),
-                                str(r.get("card_type","BASIC")).strip(),
-                                str(r.get("source","")).strip()
-                            )
-                            if cid:
-                                flash_ensure_queue(user_id, int(cid))
-                            count += 1
-                        audit(user_id, "IMPORT_CSV", "flashcards", None, f"rows={count}")
-                        st.success(f"Importação flashcards concluída ({count}).")
-                except Exception as e:
-                    st.error(f"Erro ao importar: {e}")
+        st.warning("Importação aqui é só para backup geral. Para flashcards, use o menu **Importar Flashcards**.")
+        st.info("Se quiser, eu adapto importação completa de todos os CSVs aqui também.")
 
 
 # =========================================================
@@ -2470,101 +1999,59 @@ elif menu == "Exportar/Importar CSV":
 # =========================================================
 elif menu == "Matérias/Subtemas":
     st.subheader("📚 Gerenciar matérias e subtemas")
-
     tab1, tab2 = st.tabs(["Matérias", "Subtemas"])
 
     with tab1:
-        st.markdown("#### Adicionar matéria")
-        new_subject = st.text_input("Nome da matéria")
-        if st.button("Adicionar matéria", type="primary"):
+        new_subject = st.text_input("Nome da matéria", key="subj_new_name")
+        if st.button("Adicionar matéria", type="primary", key="subj_add"):
             if not new_subject.strip():
                 st.error("Digite um nome.")
             else:
                 execute("INSERT OR IGNORE INTO subjects (name, created_at) VALUES (?, ?)", (new_subject.strip(), now_str()))
-                audit(user_id, "CREATE_SUBJECT", "subjects", None, new_subject.strip())
+                audit(user_id, "CRIAR_MATERIA", "subjects", None, new_subject.strip())
                 st.success("Matéria adicionada (ou já existia).")
                 st.rerun()
 
-        st.markdown("#### Lista de matérias")
         subs = fetch_all("SELECT id, name, created_at FROM subjects ORDER BY name;")
         df = pd.DataFrame(subs, columns=["id","name","created_at"])
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-        if not df.empty:
-            sid = st.number_input("ID da matéria", min_value=1, step=1, value=int(df.iloc[0]["id"]))
-            new_name = st.text_input("Novo nome (opcional)", value="")
-            c1, c2 = st.columns(2)
-            if c1.button("✏️ Renomear", use_container_width=True):
-                if not new_name.strip():
-                    st.error("Digite o novo nome.")
-                else:
-                    execute("UPDATE subjects SET name=? WHERE id=?", (new_name.strip(), int(sid)))
-                    audit(user_id, "RENAME_SUBJECT", "subjects", int(sid), new_name.strip())
-                    st.success("Renomeado.")
-                    st.rerun()
-            if c2.button("🗑️ Excluir (cuidado!)", use_container_width=True):
-                execute("DELETE FROM subjects WHERE id=?", (int(sid),))
-                audit(user_id, "DELETE_SUBJECT", "subjects", int(sid), "deleted")
-                st.success("Excluído.")
-                st.rerun()
-
     with tab2:
-        st.markdown("#### Adicionar subtema")
         subjects = get_subjects()
         if not subjects:
             st.warning("Crie uma matéria primeiro.")
         else:
             subj_names = [s["name"] for s in subjects]
-            idx = st.selectbox("Matéria", range(len(subj_names)), format_func=lambda i: subj_names[i])
+            idx = st.selectbox("Matéria", range(len(subj_names)), format_func=lambda i: subj_names[i], key="topic_subj_pick")
             subject_id = subjects[idx]["id"]
-            topic_name = st.text_input("Nome do subtema")
-            if st.button("Adicionar subtema", type="primary"):
+            topic_name = st.text_input("Nome do subtema", key="topic_new_name")
+            if st.button("Adicionar subtema", type="primary", key="topic_add"):
                 if not topic_name.strip():
                     st.error("Digite um nome.")
                 else:
                     execute("INSERT OR IGNORE INTO topics (subject_id, name, created_at) VALUES (?, ?, ?)",
                             (subject_id, topic_name.strip(), now_str()))
-                    audit(user_id, "CREATE_TOPIC", "topics", None, f"{subject_id}:{topic_name.strip()}")
+                    audit(user_id, "CRIAR_SUBTEMA", "topics", None, f"{subject_id}:{topic_name.strip()}")
                     st.success("Subtema adicionado (ou já existia).")
                     st.rerun()
 
-            st.markdown("#### Subtemas da matéria selecionada")
             topics = fetch_all("SELECT id, name, created_at FROM topics WHERE subject_id=? ORDER BY name;", (subject_id,))
             df2 = pd.DataFrame(topics, columns=["id","name","created_at"])
             st.dataframe(df2, use_container_width=True, hide_index=True)
 
-            if not df2.empty:
-                tid = st.number_input("ID do subtema", min_value=1, step=1, value=int(df2.iloc[0]["id"]))
-                new_tname = st.text_input("Novo nome do subtema (opcional)", value="")
-                c1, c2 = st.columns(2)
-                if c1.button("✏️ Renomear subtema", use_container_width=True):
-                    if not new_tname.strip():
-                        st.error("Digite o novo nome.")
-                    else:
-                        execute("UPDATE topics SET name=? WHERE id=?", (new_tname.strip(), int(tid)))
-                        audit(user_id, "RENAME_TOPIC", "topics", int(tid), new_tname.strip())
-                        st.success("Renomeado.")
-                        st.rerun()
-                if c2.button("🗑️ Excluir subtema", use_container_width=True):
-                    execute("DELETE FROM topics WHERE id=?", (int(tid),))
-                    audit(user_id, "DELETE_TOPIC", "topics", int(tid), "deleted")
-                    st.success("Excluído.")
-                    st.rerun()
-
 
 # =========================================================
-# PAGE: USUÁRIOS
+# PAGE: USUÁRIOS (CORRIGIDO)
 # =========================================================
 elif menu == "Usuários":
     st.subheader("👥 Usuários")
     st.info("Padrão: **admin / admin123**. Crie usuários e troque senhas aqui.")
-
     tab1, tab2, tab3 = st.tabs(["Criar usuário", "Trocar senha (logado)", "Listar usuários"])
 
     with tab1:
-        new_u = st.text_input("Novo usuário", key="create_user_username")
-        new_p = st.text_input("Nova senha", type="password", key="create_user_password")
-        if st.button("Criar", type="primary", key="create_user_btn"):
+        new_u = st.text_input("Novo usuário", key="usr_new_username")
+        new_p = st.text_input("Nova senha", type="password", key="usr_new_password")
+        if st.button("Criar usuário", type="primary", key="usr_create_btn"):
             if not new_u.strip() or not new_p:
                 st.error("Preencha usuário e senha.")
             else:
@@ -2575,20 +2062,20 @@ elif menu == "Usuários":
                         INSERT INTO users (username, salt, password_hash, created_at)
                         VALUES (?, ?, ?, ?)
                     """, (new_u.strip(), salt, pw_hash, now_str()))
-                    audit(user_id, "CREATE_USER", "users", uid, new_u.strip())
+                    audit(user_id, "CRIAR_USUARIO", "users", uid, new_u.strip())
                     st.success("Usuário criado.")
                 except Exception as e:
                     st.error(f"Erro: {e}")
 
     with tab2:
-        st.markdown("Trocar senha do usuário logado:")
-        current = st.text_input("Senha atual", type="password", key="pw_current")
-        newpass = st.text_input("Nova senha", type="password", key="pw_new")
-        newpass2 = st.text_input("Repetir nova senha", type="password", key="pw_new2")
-
-        if st.button("Atualizar senha", type="primary", key="pw_update_btn"):
+        current = st.text_input("Senha atual", type="password", key="usr_pw_current")
+        newpass = st.text_input("Nova senha", type="password", key="usr_pw_new")
+        newpass2 = st.text_input("Repetir nova senha", type="password", key="usr_pw_new2")
+        if st.button("Atualizar senha", type="primary", key="usr_pw_btn"):
             u = get_user_by_username(username)
-            if not check_password(current, u["salt"], u["hash"]):
+            if not u:
+                st.error("Usuário logado não encontrado.")
+            elif not check_password(current, u["salt"], u["hash"]):
                 st.error("Senha atual incorreta.")
             elif newpass != newpass2 or not newpass:
                 st.error("Nova senha inválida ou não confere.")
@@ -2596,50 +2083,7 @@ elif menu == "Usuários":
                 salt = secrets.token_hex(16)
                 pw_hash = hash_password(newpass, salt)
                 execute("UPDATE users SET salt=?, password_hash=? WHERE id=?", (salt, pw_hash, user_id))
-                audit(user_id, "CHANGE_PASSWORD", "users", user_id, "changed")
-                st.success("Senha atualizada. ✅")
-
-    with tab3:
-        rows = fetch_all("SELECT id, username, created_at FROM users ORDER BY created_at DESC;")
-        df = pd.DataFrame(rows, columns=["id","username","created_at"])
-        st.dataframe(df, use_container_width=True, hide_index=True)
-
-    with tab1:
-        new_u = st.text_input("Novo usuário")
-        new_p = st.text_input("Nova senha", type="password")
-        if st.button("Criar", type="primary"):
-            if not new_u.strip() or not new_p:
-                st.error("Preencha usuário e senha.")
-            else:
-                salt = secrets.token_hex(16)
-                pw_hash = hash_password(new_p, salt)
-                try:
-                    uid = execute("""
-                        INSERT INTO users (username, salt, password_hash, created_at)
-                        VALUES (?, ?, ?, ?)
-                    """, (new_u.strip(), salt, pw_hash, now_str()))
-                    audit(user_id, "CREATE_USER", "users", uid, new_u.strip())
-                    st.success("Usuário criado.")
-                except Exception as e:
-                    st.error(f"Erro: {e}")
-
-    with tab2:
-        st.markdown("Trocar senha do usuário logado:")
-        current = st.text_input("Senha atual", type="password")
-        newpass = st.text_input("Nova senha", type="password")
-        newpass2 = st.text_input("Repetir nova senha", type="password")
-
-        if st.button("Atualizar senha", type="primary"):
-            u = get_user_by_username(username)
-            if not check_password(current, u["salt"], u["hash"]):
-                st.error("Senha atual incorreta.")
-            elif newpass != newpass2 or not newpass:
-                st.error("Nova senha inválida ou não confere.")
-            else:
-                salt = secrets.token_hex(16)
-                pw_hash = hash_password(newpass, salt)
-                execute("UPDATE users SET salt=?, password_hash=? WHERE id=?", (salt, pw_hash, user_id))
-                audit(user_id, "CHANGE_PASSWORD", "users", user_id, "changed")
+                audit(user_id, "TROCAR_SENHA", "users", user_id, "changed")
                 st.success("Senha atualizada. ✅")
 
     with tab3:
@@ -2661,5 +2105,4 @@ elif menu == "Auditoria":
         LIMIT 500
     """)
     df = pd.DataFrame(rows, columns=["id","created_at","user","action","entity","entity_id","details"])
-
     st.dataframe(df, use_container_width=True, hide_index=True)
