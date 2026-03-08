@@ -10269,8 +10269,12 @@ def main():
     ensure_questions_review_schema()
     inject_global_css()
     inject_dashboard_css()
+    try:
     init_taxonomia_tables()
     semear_taxonomia_padrao()
+except Exception as e:
+    st.error(f"Erro ao inicializar taxonomia: {e}")
+    st.stop()
 
     if not st.session_state.logged_in:
         render_login_screen()
@@ -10316,4 +10320,5 @@ def main():
 
 
 if __name__ == "__main__":
+
     main()
