@@ -202,6 +202,210 @@ def today_plus_days(days: int):
     return (date.today() + timedelta(days=days)).isoformat()
 
 
+def get_stage_config(stage_name: str):
+    stage_name = normalize_text(stage_name)
+    if stage_name in STUDY_STAGES:
+        return STUDY_STAGES[stage_name]
+    return STUDY_STAGES["Amador"]
+
+
+def get_area_themes(area_name: str):
+    area_name = normalize_text(area_name)
+    if area_name in AREA_STRUCTURE:
+        return list(AREA_STRUCTURE[area_name].keys())
+    return []
+
+
+def get_theme_subtopics(area_name: str, theme_name: str):
+    area_name = normalize_text(area_name)
+    theme_name = normalize_text(theme_name)
+    if area_name in AREA_STRUCTURE and theme_name in AREA_STRUCTURE[area_name]:
+        return AREA_STRUCTURE[area_name][theme_name]
+    return []
+
+
+def draw_pdf_multiline(
+    c,
+    text,
+    x,
+    y,
+    max_width=17.2 * cm,
+    line_height=0.52 * cm,
+    font_name="Helvetica",
+    font_size=10,
+):
+    c.setFont(font_name, font_size)
+    words = str(text or "").split()
+    if not words:
+        return y
+
+    current_line = ""
+    for word in words:
+        test_line = f"{current_line} {word}".strip()
+        if c.stringWidth(test_line, font_name, font_size) <= max_width:
+            current_line = test_line
+        else:
+            if current_line:
+                c.drawString(x, y, current_line)
+                y -= line_height
+            current_line = word
+
+    if current_line:
+        c.drawString(x, y, current_line)
+        y -= line_height
+
+    return y
+
+
+def draw_pdf_background(c):
+    width, height = A4
+
+    c.saveState()
+    c.setFillColorRGB(0.985, 0.989, 0.995)
+    c.rect(0, 0, width, height, fill=1, stroke=0)
+    c.restoreState()
+
+    c.saveState()
+    c.setFillColorRGB(0.10, 0.22, 0.42)
+    c.rect(0, height - 2.0 * cm, width, 2.0 * cm, fill=1, stroke=0)
+    c.restoreState()
+
+    c.saveState()
+    c.setStrokeColorRGB(0.78, 0.84, 0.92)
+    c.setLineWidth(0.03 * cm)
+    c.line(1.2 * cm, height - 2.1 * cm, width - 1.2 * cm, height - 2.1 * cm)
+    c.restoreState()
+
+    logo_path = get_logo_path()
+    if logo_path:
+        try:
+            img = ImageReader(logo_path)
+            wm_w = 9.0 * cm
+            wm_h = 9.0 * cm
+            x = (width - wm_w) / 2
+            y = (height - wm_h) / 2 - 1.2 * cm
+
+            c.saveState()
+            try:
+                c.setFillAlpha(0.06)
+            except Exception:
+                pass
+
+            c.drawImage(
+                img,
+                x,
+                y,
+                width=wm_w,
+                height=wm_h,
+                preserveAspectRatio=True,
+                mask="auto"
+            )
+            c.restoreState()
+        except Exception:
+            pass
+
+    c.saveState()
+    c.setStrokeColorRGB(0.85, 0.89, 0.94)
+    c.setLineWidth(0.02 * cm)
+    c.line(1.5 * cm, 1.7 * cm, width - 1.5 * cm, 1.7 * cm)
+    c.restoreState()
+
+
+def draw_pdf_header(c, subtitle="Relatório Estratégico"):
+    width, height = A4
+    logo_path = get_logo_path()
+
+    if logo_path:
+        try:
+            img = ImageReader(logo_path)
+            c.drawImage(
+                img,
+                1.5 * cm,
+                height - 1.65 * cm,
+                width=1.35 * cm,
+                height=1.35 * cm,
+                preserveAspectRatio=True,
+                mask="auto"
+            )
+        except Exception:
+            pass
+
+    c.setFillColorRGB(1, 1, 1)
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(3.1 * cm, height - 0.95 * cm, "Mentoria do Jhon")
+
+    c.setFont("Helvetica", 9)
+    c.drawString(3.1 * cm, height - 1.38 * cm, subtitle)
+
+    c.setFillColorRGB(0.88, 0.92, 0.98)
+    c.setFont("Helvetica", 8)
+    c.drawRightString(width - 1.5 * cm, height - 1.15 * cm, datetime.now().strftime("%d/%m/%Y %H:%M"))
+
+
+def draw_pdf_footer(c, username=""):
+    width, _ = A4
+    footer_text = "Mentoria do Jhon • Diagnóstico situacional premium"
+    if normalize_text(username):
+        footer_text += f" • Usuário: {username}"
+
+    c.setFillColorRGB(0.45, 0.50, 0.58)
+    c.setFont("Helvetica", 8)
+    c.drawString(1.6 * cm, 1.15 * cm, footer_text)
+
+
+def draw_pdf_section_title(c, title, x, y):
+    c.setFillColorRGB(0.08, 0.16, 0.30)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x, y, title)
+
+    c.setStrokeColorRGB(0.80, 0.86, 0.93)
+    c.setLineWidth(0.03 * cm)
+    c.line(x, y - 0.14 * cm, 19.0 * cm, y - 0.14 * cm)
+
+    return y - 0.65 * cm
+
+
+def draw_pdf_highlight_box(c, x, y, w, h, title, lines):
+    c.saveState()
+    c.setFillColorRGB(1, 1, 1)
+    c.setStrokeColorRGB(0.82, 0.87, 0.94)
+    c.setLineWidth(0.03 * cm)
+    c.roundRect(x, y - h, w, h, 0.28 * cm, fill=1, stroke=1)
+    c.restoreState()
+
+    c.setFillColorRGB(0.08, 0.16, 0.30)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(x + 0.35 * cm, y - 0.45 * cm, title)
+
+    c.setFillColorRGB(0.22, 0.26, 0.33)
+    text_y = y - 0.95 * cm
+    for line in lines:
+        text_y = draw_pdf_multiline(
+            c,
+            line,
+            x + 0.35 * cm,
+            text_y,
+            max_width=w - 0.7 * cm,
+            line_height=0.42 * cm,
+            font_name="Helvetica",
+            font_size=8.8,
+        )
+        text_y -= 0.03 * cm
+
+    return y - h
+
+
+def pdf_prepare_page(c, subtitle="Relatório Estratégico", username=""):
+    draw_pdf_background(c)
+    draw_pdf_header(c, subtitle=subtitle)
+    draw_pdf_footer(c, username=username)
+    return A4[1] - 2.8 * cm
+
+
+def pdf_new_page(c, subtitle="Continuação do relatório", username=""):
+    c.showPage()
+    return pdf_prepare_page(c, subtitle=subtitle, username=username)
+
 # =========================================================
 # BANCO DE DADOS
 # =========================================================
@@ -1160,7 +1364,7 @@ em uma experiência visual mais elegante, sólida e profissional.
         st.caption("Indicadores estratégicos")
 
     st.caption(
-        "Uma interface premium melhora a percepção de valor e a experiência de uso desde a tela inicial."
+        "By Jhon Jason"
     )
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -2482,7 +2686,31 @@ def render_questions_manager():
 # =========================================================
 # FLASHCARDS
 # =========================================================
+def ensure_flashcards_extended_schema():
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("PRAGMA table_info(flashcards)")
+        cols = [row[1] for row in cur.fetchall()]
+
+        alters = {
+            "card_type": "ALTER TABLE flashcards ADD COLUMN card_type TEXT NOT NULL DEFAULT 'basic'",
+            "cloze_text": "ALTER TABLE flashcards ADD COLUMN cloze_text TEXT DEFAULT ''",
+            "cloze_answer": "ALTER TABLE flashcards ADD COLUMN cloze_answer TEXT DEFAULT ''",
+            "cloze_full_text": "ALTER TABLE flashcards ADD COLUMN cloze_full_text TEXT DEFAULT ''",
+        }
+
+        for col, ddl in alters.items():
+            if col not in cols:
+                cur.execute(ddl)
+
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def initialize_new_flashcard_defaults(card_id: int):
+    ensure_flashcards_extended_schema()
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
@@ -2493,7 +2721,11 @@ def initialize_new_flashcard_defaults(card_id: int):
             interval_days = COALESCE(interval_days, 0),
             review_count = COALESCE(review_count, 0),
             lapse_count = COALESCE(lapse_count, 0),
-            card_state = COALESCE(card_state, 'new')
+            card_state = COALESCE(card_state, 'new'),
+            card_type = COALESCE(card_type, 'basic'),
+            cloze_text = COALESCE(cloze_text, ''),
+            cloze_answer = COALESCE(cloze_answer, ''),
+            cloze_full_text = COALESCE(cloze_full_text, '')
         WHERE id = ?
         """,
         (date.today().isoformat(), card_id)
@@ -2502,7 +2734,36 @@ def initialize_new_flashcard_defaults(card_id: int):
     conn.close()
 
 
+def extract_first_cloze_data(text: str):
+    text = normalize_text(text)
+    if not text:
+        return "", "", ""
+
+    import re
+
+    pattern = r"\{\{c\d+::(.*?)(?:::(.*?))?\}\}"
+    matches = re.findall(pattern, text)
+
+    if not matches:
+        return "", "", ""
+
+    answers = []
+
+    def replace_with_blank(match):
+        inner = match.group(1)
+        answers.append(inner.strip())
+        return "_____"
+
+    masked_text = re.sub(pattern, replace_with_blank, text)
+    answer_text = " | ".join([a for a in answers if a])
+    full_text = re.sub(pattern, lambda m: m.group(1).strip(), text)
+
+    return masked_text, answer_text, full_text
+
+
 def review_flashcard(card_id: int, rating: str):
+    ensure_flashcards_extended_schema()
+
     rating = normalize_text(rating).lower()
     valid = {"again", "hard", "good", "easy"}
     if rating not in valid:
@@ -2584,6 +2845,8 @@ def review_flashcard(card_id: int, rating: str):
 
 
 def fetch_flashcards_df(user_id: int):
+    ensure_flashcards_extended_schema()
+
     df = fetch_dataframe(
         """
         SELECT *
@@ -2603,29 +2866,44 @@ def fetch_flashcards_df(user_id: int):
         return pd.DataFrame(columns=[
             "id", "deck", "subject", "topic", "question", "answer", "note",
             "created_at", "due_date", "last_reviewed", "review_count",
-            "lapse_count", "ease_factor", "interval_days", "card_state"
+            "lapse_count", "ease_factor", "interval_days", "card_state",
+            "card_type", "cloze_text", "cloze_answer", "cloze_full_text"
         ])
 
-    for col in ["deck", "subject", "topic", "question", "answer", "note", "card_state"]:
+    text_cols = [
+        "deck", "subject", "topic", "question", "answer", "note",
+        "card_state", "card_type", "cloze_text", "cloze_answer", "cloze_full_text"
+    ]
+    for col in text_cols:
         if col in df.columns:
             df[col] = df[col].fillna("").astype(str)
+        else:
+            df[col] = ""
 
     for col in ["review_count", "lapse_count", "interval_days"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+        else:
+            df[col] = 0
 
     if "ease_factor" in df.columns:
         df["ease_factor"] = pd.to_numeric(df["ease_factor"], errors="coerce").fillna(2.5)
+    else:
+        df["ease_factor"] = 2.5
 
     if "due_date" not in df.columns:
         df["due_date"] = date.today().isoformat()
     else:
         df["due_date"] = df["due_date"].fillna(date.today().isoformat()).astype(str)
 
+    df["card_type"] = df["card_type"].replace("", "basic")
+
     return df
 
 
 def add_flashcard(user_id: int, deck: str, subject: str, topic: str, question: str, answer: str, note: str):
+    ensure_flashcards_extended_schema()
+
     question = normalize_text(question)
     answer = normalize_text(answer)
 
@@ -2641,9 +2919,10 @@ def add_flashcard(user_id: int, deck: str, subject: str, topic: str, question: s
             """
             INSERT INTO flashcards (
                 user_id, deck, subject, topic, question, answer, note, created_at,
-                due_date, last_reviewed, review_count, lapse_count, ease_factor, interval_days, card_state
+                due_date, last_reviewed, review_count, lapse_count, ease_factor,
+                interval_days, card_state, card_type, cloze_text, cloze_answer, cloze_full_text
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -2661,6 +2940,10 @@ def add_flashcard(user_id: int, deck: str, subject: str, topic: str, question: s
                 2.5,
                 0,
                 "new",
+                "basic",
+                "",
+                "",
+                "",
             )
         )
         conn.commit()
@@ -2669,6 +2952,61 @@ def add_flashcard(user_id: int, deck: str, subject: str, topic: str, question: s
         return True, "Flashcard adicionado com sucesso."
     except Exception as e:
         return False, f"Erro ao adicionar flashcard: {e}"
+    finally:
+        conn.close()
+
+
+def add_cloze_flashcard(user_id: int, deck: str, subject: str, topic: str, cloze_source_text: str, note: str):
+    ensure_flashcards_extended_schema()
+
+    cloze_source_text = normalize_text(cloze_source_text)
+    if not cloze_source_text:
+        return False, "Digite o texto do cloze."
+
+    cloze_text, cloze_answer, cloze_full_text = extract_first_cloze_data(cloze_source_text)
+    if not cloze_text or not cloze_answer:
+        return False, "O cloze precisa conter ao menos um padrão como {{c1::texto}}."
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            INSERT INTO flashcards (
+                user_id, deck, subject, topic, question, answer, note, created_at,
+                due_date, last_reviewed, review_count, lapse_count, ease_factor,
+                interval_days, card_state, card_type, cloze_text, cloze_answer, cloze_full_text
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                normalize_text(deck),
+                normalize_text(subject),
+                normalize_text(topic),
+                cloze_text,
+                cloze_answer,
+                normalize_text(note),
+                datetime.now().isoformat(),
+                date.today().isoformat(),
+                None,
+                0,
+                0,
+                2.5,
+                0,
+                "new",
+                "cloze",
+                cloze_text,
+                cloze_answer,
+                cloze_full_text,
+            )
+        )
+        conn.commit()
+        card_id = cur.lastrowid
+        initialize_new_flashcard_defaults(card_id)
+        return True, "Flashcard cloze adicionado com sucesso."
+    except Exception as e:
+        return False, f"Erro ao adicionar flashcard cloze: {e}"
     finally:
         conn.close()
 
@@ -2686,44 +3024,70 @@ def delete_flashcard(card_id: int):
         conn.close()
 
 
-def import_flashcards_csv(user_id: int, uploaded_file, deck_name: str, subject_name: str, topic_name: str):
+def _read_csv_flexible(uploaded_file):
+    df = None
+    for sep in [",", ";", "\t"]:
+        for header in ["infer", None]:
+            try:
+                uploaded_file.seek(0)
+                tmp = pd.read_csv(uploaded_file, sep=sep, header=header, dtype=str).fillna("")
+                if not tmp.empty and tmp.shape[1] >= 1:
+                    df = tmp.copy()
+                    break
+            except Exception:
+                pass
+        if df is not None:
+            break
+    return df
+
+
+def import_flashcards_csv_basic(user_id: int, uploaded_file, deck_name: str, subject_name: str, topic_name: str):
+    ensure_flashcards_extended_schema()
+
     if uploaded_file is None:
-        return False, "Envie um arquivo CSV."
+        return False, "Envie um arquivo CSV basic."
 
-    try:
-        df = pd.read_csv(uploaded_file)
-    except Exception:
-        try:
-            uploaded_file.seek(0)
-            df = pd.read_csv(uploaded_file, sep=";")
-        except Exception as e:
-            return False, f"Não foi possível ler o CSV: {e}"
+    df = _read_csv_flexible(uploaded_file)
+    if df is None or df.empty:
+        return False, "Não foi possível ler o CSV basic."
 
-    if df.empty:
-        return False, "O CSV está vazio."
+    if all(isinstance(c, int) for c in df.columns):
+        cols = list(df.columns)
+        if len(cols) < 2:
+            return False, "O CSV basic precisa ter pelo menos 2 colunas."
+        q_col = cols[0]
+        a_col = cols[1]
+        n_col = cols[2] if len(cols) >= 3 else None
+    else:
+        cols_lower = {str(c).strip().lower(): c for c in df.columns}
+        q_col = None
+        a_col = None
+        n_col = None
 
-    cols_lower = {str(c).strip().lower(): c for c in df.columns}
-    q_col = None
-    a_col = None
-    n_col = None
+        for candidate in ["question", "pergunta", "frente", "front"]:
+            if candidate in cols_lower:
+                q_col = cols_lower[candidate]
+                break
 
-    for candidate in ["question", "pergunta", "frente", "front"]:
-        if candidate in cols_lower:
-            q_col = cols_lower[candidate]
-            break
+        for candidate in ["answer", "resposta", "verso", "back"]:
+            if candidate in cols_lower:
+                a_col = cols_lower[candidate]
+                break
 
-    for candidate in ["answer", "resposta", "verso", "back"]:
-        if candidate in cols_lower:
-            a_col = cols_lower[candidate]
-            break
+        for candidate in ["note", "notes", "explicacao", "explicação", "comentario", "comentário", "obs", "observacao", "observação"]:
+            if candidate in cols_lower:
+                n_col = cols_lower[candidate]
+                break
 
-    for candidate in ["note", "notes", "explicacao", "explicação", "comentario", "comentário"]:
-        if candidate in cols_lower:
-            n_col = cols_lower[candidate]
-            break
+        if q_col is None or a_col is None:
+            cols = list(df.columns)
+            if len(cols) >= 2:
+                q_col = cols[0]
+                a_col = cols[1]
+                n_col = cols[2] if len(cols) >= 3 else None
 
     if q_col is None or a_col is None:
-        return False, "O CSV precisa ter colunas de pergunta/frente e resposta/verso."
+        return False, "O CSV basic precisa ter pelo menos frente/pergunta e resposta/verso."
 
     insert_count = 0
     conn = get_conn()
@@ -2732,7 +3096,7 @@ def import_flashcards_csv(user_id: int, uploaded_file, deck_name: str, subject_n
         for _, row in df.iterrows():
             question = normalize_text(row.get(q_col, ""))
             answer = normalize_text(row.get(a_col, ""))
-            note = normalize_text(row.get(n_col, "")) if n_col else ""
+            note = normalize_text(row.get(n_col, "")) if n_col is not None else ""
 
             if not question or not answer:
                 continue
@@ -2741,9 +3105,10 @@ def import_flashcards_csv(user_id: int, uploaded_file, deck_name: str, subject_n
                 """
                 INSERT INTO flashcards (
                     user_id, deck, subject, topic, question, answer, note, created_at,
-                    due_date, last_reviewed, review_count, lapse_count, ease_factor, interval_days, card_state
+                    due_date, last_reviewed, review_count, lapse_count, ease_factor,
+                    interval_days, card_state, card_type, cloze_text, cloze_answer, cloze_full_text
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     user_id,
@@ -2761,29 +3126,130 @@ def import_flashcards_csv(user_id: int, uploaded_file, deck_name: str, subject_n
                     2.5,
                     0,
                     "new",
+                    "basic",
+                    "",
+                    "",
+                    "",
                 )
             )
             insert_count += 1
 
         conn.commit()
     except Exception as e:
-        return False, f"Erro ao importar CSV: {e}"
+        return False, f"Erro ao importar CSV basic: {e}"
     finally:
         conn.close()
 
     if insert_count == 0:
-        return False, "Nenhum flashcard válido foi importado."
-    return True, f"{insert_count} flashcards importados com sucesso."
+        return False, "Nenhum flashcard basic válido foi importado."
+    return True, f"{insert_count} flashcards basic importados com sucesso."
+
+
+def import_flashcards_csv_cloze(user_id: int, uploaded_file, deck_name: str, subject_name: str, topic_name: str):
+    ensure_flashcards_extended_schema()
+
+    if uploaded_file is None:
+        return False, "Envie um arquivo CSV cloze."
+
+    df = _read_csv_flexible(uploaded_file)
+    if df is None or df.empty:
+        return False, "Não foi possível ler o CSV cloze."
+
+    if all(isinstance(c, int) for c in df.columns):
+        cols = list(df.columns)
+        text_col = cols[0] if len(cols) >= 1 else None
+        n_col = cols[2] if len(cols) >= 3 else None
+    else:
+        cols_lower = {str(c).strip().lower(): c for c in df.columns}
+        text_col = None
+        n_col = None
+
+        for candidate in ["cloze", "cloze_text", "texto", "text", "sentence", "frase"]:
+            if candidate in cols_lower:
+                text_col = cols_lower[candidate]
+                break
+
+        for candidate in ["note", "notes", "explicacao", "explicação", "comentario", "comentário", "obs", "observacao", "observação"]:
+            if candidate in cols_lower:
+                n_col = cols_lower[candidate]
+                break
+
+        if text_col is None:
+            cols = list(df.columns)
+            text_col = cols[0] if len(cols) >= 1 else None
+            n_col = cols[2] if len(cols) >= 3 else None
+
+    if text_col is None:
+        return False, "O CSV cloze precisa ter ao menos a primeira coluna com o texto cloze."
+
+    insert_count = 0
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        for _, row in df.iterrows():
+            raw_text = normalize_text(row.get(text_col, ""))
+            note = normalize_text(row.get(n_col, "")) if n_col is not None else ""
+
+            if not raw_text:
+                continue
+
+            cloze_text, cloze_answer, cloze_full_text = extract_first_cloze_data(raw_text)
+            if not cloze_text or not cloze_answer:
+                continue
+
+            cur.execute(
+                """
+                INSERT INTO flashcards (
+                    user_id, deck, subject, topic, question, answer, note, created_at,
+                    due_date, last_reviewed, review_count, lapse_count, ease_factor,
+                    interval_days, card_state, card_type, cloze_text, cloze_answer, cloze_full_text
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    user_id,
+                    normalize_text(deck_name),
+                    normalize_text(subject_name),
+                    normalize_text(topic_name),
+                    cloze_text,
+                    cloze_answer,
+                    note,
+                    datetime.now().isoformat(),
+                    date.today().isoformat(),
+                    None,
+                    0,
+                    0,
+                    2.5,
+                    0,
+                    "new",
+                    "cloze",
+                    cloze_text,
+                    cloze_answer,
+                    cloze_full_text,
+                )
+            )
+            insert_count += 1
+
+        conn.commit()
+    except Exception as e:
+        return False, f"Erro ao importar CSV cloze: {e}"
+    finally:
+        conn.close()
+
+    if insert_count == 0:
+        return False, "Nenhum flashcard cloze válido foi importado."
+    return True, f"{insert_count} flashcards cloze importados com sucesso."
 
 
 def build_flashcard_filters(df: pd.DataFrame):
     decks = sorted([x for x in df["deck"].dropna().astype(str).unique().tolist() if normalize_text(x)]) if not df.empty else []
     subjects = sorted([x for x in df["subject"].dropna().astype(str).unique().tolist() if normalize_text(x)]) if not df.empty else []
     topics = sorted([x for x in df["topic"].dropna().astype(str).unique().tolist() if normalize_text(x)]) if not df.empty else []
-    return decks, subjects, topics
+    types_ = sorted([x for x in df["card_type"].dropna().astype(str).unique().tolist() if normalize_text(x)]) if not df.empty else []
+    return decks, subjects, topics, types_
 
 
-def filter_flashcards_df(df: pd.DataFrame, deck_filter: str, subject_filter: str, topic_filter: str, search_term: str, due_only: bool = False):
+def filter_flashcards_df(df: pd.DataFrame, deck_filter: str, subject_filter: str, topic_filter: str, type_filter: str, search_term: str, due_only: bool = False):
     if df.empty:
         return df.copy()
 
@@ -2795,6 +3261,8 @@ def filter_flashcards_df(df: pd.DataFrame, deck_filter: str, subject_filter: str
         out = out[out["subject"] == subject_filter]
     if topic_filter != "Todos":
         out = out[out["topic"] == topic_filter]
+    if type_filter != "Todos":
+        out = out[out["card_type"] == type_filter]
 
     if due_only:
         today_iso = date.today().isoformat()
@@ -2808,7 +3276,11 @@ def filter_flashcards_df(df: pd.DataFrame, deck_filter: str, subject_filter: str
             out["note"].str.lower().str.contains(needle, na=False) |
             out["subject"].str.lower().str.contains(needle, na=False) |
             out["topic"].str.lower().str.contains(needle, na=False) |
-            out["deck"].str.lower().str.contains(needle, na=False)
+            out["deck"].str.lower().str.contains(needle, na=False) |
+            out["card_type"].str.lower().str.contains(needle, na=False) |
+            out["cloze_text"].str.lower().str.contains(needle, na=False) |
+            out["cloze_answer"].str.lower().str.contains(needle, na=False) |
+            out["cloze_full_text"].str.lower().str.contains(needle, na=False)
         ]
 
     return out.reset_index(drop=True)
@@ -2818,13 +3290,13 @@ def render_flashcard_kpis(df: pd.DataFrame):
     total_cards = int(len(df)) if not df.empty else 0
     due_today = int((df["due_date"].fillna(date.today().isoformat()).astype(str) <= date.today().isoformat()).sum()) if not df.empty else 0
     total_subjects = int(df["subject"].astype(str).replace("", pd.NA).dropna().nunique()) if not df.empty else 0
-    total_topics = int(df["topic"].astype(str).replace("", pd.NA).dropna().nunique()) if not df.empty else 0
+    total_cloze = int((df["card_type"] == "cloze").sum()) if not df.empty else 0
 
     cards = [
         ("Flashcards", total_cards, "Base cadastrada"),
         ("Revisões para hoje", due_today, "Fila do dia"),
         ("Matérias", total_subjects, "Cobertura"),
-        ("Subtópicos", total_topics, "Granularidade"),
+        ("Cloze", total_cloze, "Misturado ao basic"),
     ]
 
     cols = st.columns(4, gap="large")
@@ -2842,84 +3314,310 @@ def render_flashcard_kpis(df: pd.DataFrame):
             )
 
 
+def prepare_flashcard_queue(filtered_df: pd.DataFrame):
+    ids = filtered_df["id"].astype(int).tolist() if not filtered_df.empty else []
+    saved_ids = st.session_state.get("flashcard_queue_ids", [])
+
+    if not ids:
+        st.session_state.flashcard_queue_ids = []
+        st.session_state.flashcard_index = 0
+        return []
+
+    if not saved_ids or sorted(saved_ids) != sorted(ids):
+        shuffled_ids = filtered_df.sample(frac=1).reset_index(drop=True)["id"].astype(int).tolist()
+        st.session_state.flashcard_queue_ids = shuffled_ids
+        st.session_state.flashcard_index = 0
+        return shuffled_ids
+
+    return saved_ids
+
+
+def inject_flashcard_fullscreen_css():
+    st.markdown(
+        """
+        <style>
+        .fc-fullscreen-wrap{
+            min-height: calc(100vh - 120px);
+            border: 1px solid rgba(255,255,255,.05);
+            border-radius: 28px;
+            background:
+                radial-gradient(circle at top left, rgba(17,150,255,.12), transparent 26%),
+                radial-gradient(circle at top right, rgba(110,97,255,.12), transparent 24%),
+                linear-gradient(180deg, #03101f 0%, #041326 55%, #06101c 100%);
+            padding: 24px 20px 24px 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,.32);
+        }
+
+        .fc-clean-shell{
+            width: 100%;
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 8px 4px 0 4px;
+        }
+
+        .fc-clean-label{
+            color:#ffffff;
+            font-size: 1.75rem;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            text-transform: uppercase;
+            text-align: left;
+            margin: 0 0 26px 0;
+        }
+
+        .fc-question-wrap{
+            margin-top: 6px;
+        }
+
+        .fc-clean-question{
+            color:#f2f7ff;
+            font-size: 1.55rem;
+            font-weight: 800;
+            line-height: 1.5;
+            margin: 0 auto 12px auto;
+            text-align:center;
+            max-width: 980px;
+        }
+
+        .fc-clean-meta{
+            color:#8fa6c4;
+            font-size:1rem;
+            margin: 0 auto 56px auto;
+            line-height: 1.6;
+            text-align:center;
+            max-width: 900px;
+        }
+
+        .fc-reveal-block{
+            margin-top: 8px;
+            margin-bottom: 20px;
+        }
+
+        .fc-reveal-block-note{
+            margin-top: 18px;
+            margin-bottom: 28px;
+        }
+
+        .fc-buttons-wrap{
+            margin-top: 26px;
+            margin-bottom: 48px;
+        }
+
+        .fc-section-heading{
+            color:#ffffff;
+            font-size: 1.22rem;
+            font-weight: 900;
+            margin: 34px 0 12px 0;
+            letter-spacing:-0.02em;
+            text-align:left;
+        }
+
+        .fc-rating-help{
+            color:#9fb0c8;
+            font-size:1rem;
+            margin-bottom: 20px;
+            text-align:left;
+        }
+
+        .fc-clean-box{
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 22px;
+            background: rgba(255,255,255,.03);
+            padding: 22px 24px;
+            color:#eef4ff;
+            line-height:1.75;
+            font-size:1.12rem;
+            text-align:center;
+            max-width: 1000px;
+            margin-left:auto;
+            margin-right:auto;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
+        }
+
+        .fc-box-text{
+            width:100%;
+            text-align:center;
+            font-weight:700;
+            color:#f3f8ff;
+        }
+
+        .fc-small-buttons div[data-testid="stButton"] > button{
+            width:100%;
+            min-height: 52px !important;
+            padding: 0.50rem 0.75rem !important;
+            border-radius: 16px !important;
+            font-size: 0.95rem !important;
+            font-weight: 800 !important;
+        }
+
+        .fc-rate-buttons div[data-testid="stButton"] > button{
+            width:100%;
+            min-height: 50px !important;
+            padding: 0.48rem 0.70rem !important;
+            border-radius: 16px !important;
+            font-size: 0.95rem !important;
+            font-weight: 800 !important;
+        }
+
+        .fc-bottom-actions{
+            margin-top: 34px;
+            padding-top: 6px;
+        }
+
+        .fc-bottom-space{
+            height: 10px;
+        }
+
+        div[data-testid="stVerticalBlock"]:has(> div > .fc-fullscreen-wrap){
+            width:100%;
+        }
+
+        @media (max-width: 900px){
+            .fc-clean-question{
+                font-size: 1.28rem;
+            }
+
+            .fc-clean-box{
+                font-size: 1rem;
+                padding: 18px 16px;
+            }
+
+            .fc-clean-meta{
+                margin-bottom: 42px;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+
 def render_flashcard_player(filtered_df: pd.DataFrame):
-    if filtered_df.empty:
+    inject_flashcard_fullscreen_css()
+
+    queue_ids = prepare_flashcard_queue(filtered_df)
+
+    if not queue_ids:
         st.markdown('<div class="b4-empty">Nenhum flashcard encontrado com esse filtro.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="fc-bottom-actions">', unsafe_allow_html=True)
+        b1, b2, b3 = st.columns([1, 1, 1], gap="large")
+        with b1:
+            if st.button("Voltar", key="fc_back_empty", use_container_width=True):
+                st.session_state.flashcard_fullscreen = False
+                st.session_state.flashcard_show_answer = False
+                st.session_state.flashcard_show_note = False
+                st.session_state.flashcard_queue_ids = []
+                safe_rerun()
+        with b2:
+            st.button("Excluir card", key="fc_delete_disabled_empty", use_container_width=True, disabled=True)
+        with b3:
+            if st.button("Encerrar sessão", key="fc_end_session_empty", use_container_width=True):
+                reset_login_state()
+                safe_rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
         return
 
-    total = len(filtered_df)
+    total = len(queue_ids)
     current_index = st.session_state.get("flashcard_index", 0)
     current_index = max(0, min(current_index, total - 1))
     st.session_state.flashcard_index = current_index
 
-    row = filtered_df.iloc[current_index]
+    current_id = int(queue_ids[current_index])
+    row_df = filtered_df[filtered_df["id"].astype(int) == current_id].copy()
+    if row_df.empty:
+        st.session_state.flashcard_queue_ids = []
+        st.session_state.flashcard_index = 0
+        safe_rerun()
+        return
+
+    row = row_df.iloc[0]
     card_id = int(row["id"])
-    question = normalize_text(row.get("question", ""))
-    answer = normalize_text(row.get("answer", ""))
-    note = normalize_text(row.get("note", ""))
-    deck = normalize_text(row.get("deck", ""))
-    subject = normalize_text(row.get("subject", ""))
-    topic = normalize_text(row.get("topic", ""))
-    due_date = normalize_text(row.get("due_date", ""))
+    card_type = normalize_text(row.get("card_type", "basic")) or "basic"
+
+    if card_type == "cloze":
+        question = normalize_text(row.get("cloze_text", "")) or normalize_text(row.get("question", ""))
+        answer = normalize_text(row.get("cloze_answer", "")) or normalize_text(row.get("answer", ""))
+        full_text = normalize_text(row.get("cloze_full_text", ""))
+        note = normalize_text(row.get("note", ""))
+    else:
+        question = normalize_text(row.get("question", ""))
+        answer = normalize_text(row.get("answer", ""))
+        full_text = ""
+        note = normalize_text(row.get("note", ""))
+
     interval_days = to_int(row.get("interval_days", 0), 0)
     review_count = to_int(row.get("review_count", 0), 0)
 
-    meta_html = ""
-    if deck:
-        meta_html += f'<div class="fc-chip">Deck: {html.escape(deck)}</div>'
-    if subject:
-        meta_html += f'<div class="fc-chip">Matéria: {html.escape(subject)}</div>'
-    if topic:
-        meta_html += f'<div class="fc-chip">Subtópico: {html.escape(topic)}</div>'
-    if due_date:
-        meta_html += f'<div class="fc-chip">Próxima revisão: {html.escape(due_date)}</div>'
+    st.markdown('<div class="fc-fullscreen-wrap"><div class="fc-clean-shell">', unsafe_allow_html=True)
+    st.markdown('<div class="fc-clean-label">FRENTE</div>', unsafe_allow_html=True)
 
+    st.markdown('<div class="fc-question-wrap">', unsafe_allow_html=True)
+    prefix = "🪼 🪸 🐚"
+    if card_type == "cloze":
+        prefix = "🕳️ 🧠 ✍️"
+    st.markdown(f'<div class="fc-clean-question">{prefix} {html.escape(question)}</div>', unsafe_allow_html=True)
     st.markdown(
-        (
-            '<div class="fc-player">'
-            '<div class="fc-top">'
-            '<div class="b4-title">Revisão de flashcards</div>'
-            f'<div class="fc-counter">Card {current_index + 1} de {total}</div>'
-            '</div>'
-            f'<div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px;">{meta_html}</div>'
-            '<div class="fc-section-label">FRENTE</div>'
-            f'<div class="fc-box"><div class="fc-question">{html.escape(question)}</div></div>'
-            '</div>'
-        ),
+        f'<div class="fc-clean-meta">Tipo: {html.escape(card_type.title())} • Histórico: {review_count} revisão(ões) • Intervalo atual: {interval_days} dia(s) • Card {current_index + 1} de {total}</div>',
         unsafe_allow_html=True
     )
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    st.caption(f"Histórico: {review_count} revisão(ões) • Intervalo atual: {interval_days} dia(s)")
+    if st.session_state.get("flashcard_show_answer", False):
+        st.markdown('<div class="fc-reveal-block">', unsafe_allow_html=True)
+        if card_type == "cloze" and full_text:
+            reveal_text = f"✅ {html.escape(answer) if answer else 'Sem resposta cadastrada.'}<br><br>🧩 Frase completa: {html.escape(full_text)}"
+        else:
+            reveal_text = f"✅ {html.escape(answer) if answer else 'Sem resposta cadastrada.'}"
 
-    c1, c2, c3 = st.columns(3)
+        st.markdown(
+            (
+                '<div class="fc-clean-box">'
+                f'<div class="fc-box-text">{reveal_text}</div>'
+                '</div>'
+            ),
+            unsafe_allow_html=True
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    if st.session_state.get("flashcard_show_note", False):
+        st.markdown('<div class="fc-reveal-block-note">', unsafe_allow_html=True)
+        st.markdown(
+            (
+                '<div class="fc-clean-box">'
+                f'<div class="fc-box-text">🧠 {html.escape(note) if note else "Sem nota cadastrada."}</div>'
+                '</div>'
+            ),
+            unsafe_allow_html=True
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="fc-buttons-wrap">', unsafe_allow_html=True)
+    st.markdown('<div class="fc-small-buttons">', unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 1, 1], gap="large")
     with c1:
         if st.button("Mostrar resposta", key="fc_show_answer", use_container_width=True):
             st.session_state.flashcard_show_answer = True
+            safe_rerun()
     with c2:
         if st.button("Mostrar nota", key="fc_show_note", use_container_width=True):
             st.session_state.flashcard_show_note = True
+            safe_rerun()
     with c3:
         if st.button("Ocultar tudo", key="fc_hide_all", use_container_width=True):
             st.session_state.flashcard_show_answer = False
             st.session_state.flashcard_show_note = False
             safe_rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    if st.session_state.get("flashcard_show_answer", False):
-        st.markdown(
-            f'<div class="fc-section-label">RESPOSTA</div><div class="fc-box"><div class="fc-answer">{html.escape(answer)}</div></div>',
-            unsafe_allow_html=True
-        )
+    st.markdown('<div class="fc-section-heading">Avaliação da lembrança</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="fc-rating-help">Again = errei / Hard = lembrei com dificuldade / Good = lembrei bem / Easy = muito fácil</div>',
+        unsafe_allow_html=True
+    )
 
-    if st.session_state.get("flashcard_show_note", False):
-        st.markdown(
-            f'<div class="fc-section-label">NOTA / EXPLICAÇÃO</div><div class="fc-box"><div class="fc-note">{html.escape(note) if note else "Sem nota cadastrada."}</div></div>',
-            unsafe_allow_html=True
-        )
-
-    st.markdown("### Avaliação da lembrança")
-    st.caption("Again = errei / Hard = lembrei com dificuldade / Good = lembrei bem / Easy = muito fácil")
-
-    r1, r2, r3, r4 = st.columns(4)
+    st.markdown('<div class="fc-rate-buttons">', unsafe_allow_html=True)
+    r1, r2, r3, r4 = st.columns([1, 1, 1, 1], gap="large")
     with r1:
         if st.button("Again", key=f"fc_rate_again_{card_id}", use_container_width=True):
             ok, _ = review_flashcard(card_id, "again")
@@ -2952,112 +3650,219 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
                 st.session_state.flashcard_show_note = False
                 st.session_state.flashcard_index = min(current_index + 1, total - 1)
                 safe_rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    p1, p2, p3 = st.columns([1, 1, 1])
-    with p1:
-        if st.button("Card anterior", key="fc_prev", use_container_width=True):
-            st.session_state.flashcard_index = max(0, current_index - 1)
-            st.session_state.flashcard_show_answer = False
-            st.session_state.flashcard_show_note = False
-            safe_rerun()
-    with p2:
-        if st.button("Próximo card", key="fc_next", use_container_width=True):
-            st.session_state.flashcard_index = min(total - 1, current_index + 1)
-            st.session_state.flashcard_show_answer = False
-            st.session_state.flashcard_show_note = False
-            safe_rerun()
-    with p3:
-        if st.button("Fechar flashcards", key="fc_close", use_container_width=True):
+    st.markdown('<div class="fc-bottom-actions">', unsafe_allow_html=True)
+    b1, b2, b3 = st.columns([1, 1, 1], gap="large")
+    with b1:
+        if st.button("Voltar", key="fc_back", use_container_width=True):
             st.session_state.flashcard_fullscreen = False
             st.session_state.flashcard_show_answer = False
             st.session_state.flashcard_show_note = False
+            st.session_state.flashcard_queue_ids = []
             safe_rerun()
+    with b2:
+        if st.button("Excluir card", key=f"fc_delete_current_{card_id}", use_container_width=True):
+            if delete_flashcard(card_id):
+                updated_queue = [x for x in queue_ids if int(x) != card_id]
+                st.session_state.flashcard_queue_ids = updated_queue
+                st.session_state.flashcard_show_answer = False
+                st.session_state.flashcard_show_note = False
+                st.session_state.flashcard_index = max(0, min(current_index, len(updated_queue) - 1)) if updated_queue else 0
+                safe_rerun()
+    with b3:
+        if st.button("Encerrar sessão", key="fc_end_session", use_container_width=True):
+            reset_login_state()
+            safe_rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="fc-bottom-space"></div>', unsafe_allow_html=True)
+    st.markdown('</div></div>', unsafe_allow_html=True)
 
 
 def render_flashcards_page():
+    ensure_flashcards_extended_schema()
     df = fetch_flashcards_df(st.session_state.user_id)
+
+    if "flashcard_queue_ids" not in st.session_state:
+        st.session_state.flashcard_queue_ids = []
+
+    if st.session_state.get("flashcard_fullscreen", False):
+        filtered_df = filter_flashcards_df(
+            df=df,
+            deck_filter=st.session_state.get("fc_filter_deck_value", "Todos"),
+            subject_filter=st.session_state.get("fc_filter_subject_value", "Todos"),
+            topic_filter=st.session_state.get("fc_filter_topic_value", "Todos"),
+            type_filter=st.session_state.get("fc_filter_type_value", "Todos"),
+            search_term=st.session_state.get("fc_search_term_value", ""),
+            due_only=st.session_state.get("fc_due_only_value", True),
+        )
+        render_flashcard_player(filtered_df)
+        return
 
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">Flashcards</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-subtitle">Importe, organize e revise com lógica de repetição espaçada baseada em recuperação ativa.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-subtitle">Basic + Cloze no mesmo baralho, com revisão embaralhada.</div>', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="top-spacer-md"></div>', unsafe_allow_html=True)
     render_flashcard_kpis(df)
 
-    decks, subjects, topics = build_flashcard_filters(df)
-    deck_filter = st.selectbox("Filtrar deck", ["Todos"] + decks, key="fc_filter_deck")
-    subject_filter = st.selectbox("Filtrar matéria", ["Todos"] + subjects, key="fc_filter_subject")
-    topic_filter = st.selectbox("Filtrar subtópico", ["Todos"] + topics, key="fc_filter_topic")
-    due_only = st.checkbox("Mostrar apenas cards vencidos para hoje", value=True, key="fc_due_only")
-    search_term = st.text_input("Pesquisar flashcards", placeholder="Ex.: asma, antibiótico, ICC", key="fc_search_term")
+    decks, subjects, topics, types_ = build_flashcard_filters(df)
 
-    filtered_df = filter_flashcards_df(df, deck_filter, subject_filter, topic_filter, search_term, due_only=due_only)
-
-    if st.session_state.get("flashcard_fullscreen", False):
-        render_flashcard_player(filtered_df)
-        return
-
-    left, right = st.columns([0.95, 1.05], gap="large")
+    left, right = st.columns([0.98, 1.02], gap="large")
 
     with left:
-        st.markdown('<div class="b4-card">', unsafe_allow_html=True)
-        st.markdown('<div class="b4-title">Adicionar flashcard</div>', unsafe_allow_html=True)
-        st.markdown('<div class="b4-sub">Cadastre manualmente um novo card.</div>', unsafe_allow_html=True)
+        tab_manual_basic, tab_manual_cloze, tab_import = st.tabs(["Adicionar Basic", "Adicionar Cloze", "Importar CSVs"])
 
-        with st.form("form_add_flashcard", clear_on_submit=True):
-            deck = st.text_input("Deck", placeholder="Ex.: Clínica Médica")
-            subject = st.text_input("Matéria", placeholder="Ex.: Pneumologia")
-            topic = st.text_input("Subtópico", placeholder="Ex.: Asma")
-            question = st.text_area("Frente / Pergunta", placeholder="Digite a pergunta ou frente do card")
-            answer = st.text_area("Resposta / Verso", placeholder="Digite a resposta")
-            note = st.text_area("Nota / Explicação", placeholder="Digite a explicação adicional")
-            submitted = st.form_submit_button("Adicionar flashcard")
+        with tab_manual_basic:
+            st.markdown('<div class="b4-card">', unsafe_allow_html=True)
+            st.markdown('<div class="b4-title">Adicionar flashcard basic</div>', unsafe_allow_html=True)
+            st.markdown('<div class="b4-sub">Frente, resposta e nota.</div>', unsafe_allow_html=True)
 
-        if submitted:
-            ok, msg = add_flashcard(st.session_state.user_id, deck, subject, topic, question, answer, note)
-            if ok:
-                st.success(msg)
-                safe_rerun()
-            else:
-                st.error(msg)
+            with st.form("form_add_flashcard_basic", clear_on_submit=True):
+                deck = st.text_input("Deck", placeholder="Ex.: Clínica Médica", key="fc_basic_deck")
+                subject = st.text_input("Matéria", placeholder="Ex.: Pneumologia", key="fc_basic_subject")
+                topic = st.text_input("Subtópico", placeholder="Ex.: Asma", key="fc_basic_topic")
+                question = st.text_area("Frente / Pergunta", placeholder="Digite a pergunta", key="fc_basic_question")
+                answer = st.text_area("Resposta / Verso", placeholder="Digite a resposta", key="fc_basic_answer")
+                note = st.text_area("Nota / Explicação", placeholder="Digite a explicação adicional", key="fc_basic_note")
+                submitted = st.form_submit_button("Adicionar flashcard basic")
 
-        st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown('<div class="top-spacer-md"></div>', unsafe_allow_html=True)
+            if submitted:
+                ok, msg = add_flashcard(st.session_state.user_id, deck, subject, topic, question, answer, note)
+                if ok:
+                    st.success(msg)
+                    safe_rerun()
+                else:
+                    st.error(msg)
 
-        st.markdown('<div class="b4-card">', unsafe_allow_html=True)
-        st.markdown('<div class="b4-title">Importar CSV</div>', unsafe_allow_html=True)
-        st.markdown('<div class="b4-sub">O arquivo pode ter colunas como pergunta, resposta e explicação.</div>', unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        with st.form("form_import_flashcards", clear_on_submit=False):
-            csv_deck = st.text_input("Deck do lote", placeholder="Ex.: Revisão R1")
-            csv_subject = st.text_input("Matéria do lote", placeholder="Ex.: Cardiologia")
-            csv_topic = st.text_input("Subtópico do lote", placeholder="Ex.: ICC")
-            uploaded_file = st.file_uploader("Arquivo CSV", type=["csv"], key="fc_csv_upload")
-            import_submitted = st.form_submit_button("Importar flashcards")
+        with tab_manual_cloze:
+            st.markdown('<div class="b4-card">', unsafe_allow_html=True)
+            st.markdown('<div class="b4-title">Adicionar flashcard cloze</div>', unsafe_allow_html=True)
+            st.markdown('<div class="b4-sub">Use o padrão {{c1::texto}} no trecho que será ocultado.</div>', unsafe_allow_html=True)
 
-        if import_submitted:
-            ok, msg = import_flashcards_csv(st.session_state.user_id, uploaded_file, csv_deck, csv_subject, csv_topic)
-            if ok:
-                st.success(msg)
-                safe_rerun()
-            else:
-                st.error(msg)
+            with st.form("form_add_flashcard_cloze", clear_on_submit=True):
+                deck = st.text_input("Deck", placeholder="Ex.: Endócrino", key="fc_cloze_deck")
+                subject = st.text_input("Matéria", placeholder="Ex.: DM2", key="fc_cloze_subject")
+                topic = st.text_input("Subtópico", placeholder="Ex.: Tratamento", key="fc_cloze_topic")
+                cloze_source_text = st.text_area(
+                    "Texto Cloze",
+                    placeholder="Ex.: A droga de primeira linha no DM2 é {{c1::Metformina}}.",
+                    key="fc_cloze_text"
+                )
+                note = st.text_area("Nota / Explicação", placeholder="Observação adicional", key="fc_cloze_note")
+                submitted_cloze = st.form_submit_button("Adicionar flashcard cloze")
 
-        st.markdown("</div>", unsafe_allow_html=True)
+            if submitted_cloze:
+                ok, msg = add_cloze_flashcard(
+                    st.session_state.user_id,
+                    deck,
+                    subject,
+                    topic,
+                    cloze_source_text,
+                    note
+                )
+                if ok:
+                    st.success(msg)
+                    safe_rerun()
+                else:
+                    st.error(msg)
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        with tab_import:
+            st.markdown('<div class="b4-card">', unsafe_allow_html=True)
+            st.markdown('<div class="b4-title">Importar dois arquivos para o mesmo baralho</div>', unsafe_allow_html=True)
+            st.markdown('<div class="b4-sub">Você pode importar 1 CSV basic e 1 CSV cloze no mesmo deck. Depois a revisão mistura tudo.</div>', unsafe_allow_html=True)
+
+            with st.form("form_import_flashcards_dual", clear_on_submit=False):
+                csv_deck = st.text_input("Deck do lote", placeholder="Ex.: Revisão Endócrino")
+                csv_subject = st.text_input("Matéria do lote", placeholder="Ex.: Endocrinologia")
+                csv_topic = st.text_input("Subtópico do lote", placeholder="Ex.: Antidiabéticos")
+
+                basic_file = st.file_uploader(
+                    "Arquivo CSV Basic",
+                    type=["csv"],
+                    key="fc_csv_upload_basic"
+                )
+
+                cloze_file = st.file_uploader(
+                    "Arquivo CSV Cloze",
+                    type=["csv"],
+                    key="fc_csv_upload_cloze"
+                )
+
+                import_submitted = st.form_submit_button("Importar arquivos")
+
+            if import_submitted:
+                imported_msgs = []
+                error_msgs = []
+
+                if basic_file is not None:
+                    ok, msg = import_flashcards_csv_basic(
+                        st.session_state.user_id, basic_file, csv_deck, csv_subject, csv_topic
+                    )
+                    if ok:
+                        imported_msgs.append(msg)
+                    else:
+                        error_msgs.append(msg)
+
+                if cloze_file is not None:
+                    ok, msg = import_flashcards_csv_cloze(
+                        st.session_state.user_id, cloze_file, csv_deck, csv_subject, csv_topic
+                    )
+                    if ok:
+                        imported_msgs.append(msg)
+                    else:
+                        error_msgs.append(msg)
+
+                if basic_file is None and cloze_file is None:
+                    error_msgs.append("Envie ao menos um arquivo: basic ou cloze.")
+
+                if imported_msgs:
+                    st.success(" | ".join(imported_msgs))
+                    safe_rerun()
+                if error_msgs and not imported_msgs:
+                    st.error(" | ".join(error_msgs))
+                elif error_msgs:
+                    st.warning(" | ".join(error_msgs))
+
+            st.markdown("</div>", unsafe_allow_html=True)
 
     with right:
         st.markdown('<div class="b4-card">', unsafe_allow_html=True)
-        st.markdown('<div class="b4-title">Biblioteca e revisão</div>', unsafe_allow_html=True)
-        st.markdown('<div class="b4-sub">Abra a revisão do dia e faça a gestão dos cards.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="b4-title">Revisão</div>', unsafe_allow_html=True)
+        st.markdown('<div class="b4-sub">Filtre basic e cloze juntos e abra a revisão embaralhada.</div>', unsafe_allow_html=True)
+
+        deck_filter = st.selectbox("Filtrar deck", ["Todos"] + decks, key="fc_filter_deck")
+        subject_filter = st.selectbox("Filtrar matéria", ["Todos"] + subjects, key="fc_filter_subject")
+        topic_filter = st.selectbox("Filtrar subtópico", ["Todos"] + topics, key="fc_filter_topic")
+        type_filter = st.selectbox("Filtrar tipo", ["Todos"] + types_, key="fc_filter_type")
+        due_only = st.checkbox("Mostrar apenas cards vencidos para hoje", value=True, key="fc_due_only")
+        search_term = st.text_input("Pesquisar flashcards", placeholder="Ex.: asma, metformina, cloze", key="fc_search_term")
+
+        st.session_state["fc_filter_deck_value"] = deck_filter
+        st.session_state["fc_filter_subject_value"] = subject_filter
+        st.session_state["fc_filter_topic_value"] = topic_filter
+        st.session_state["fc_filter_type_value"] = type_filter
+        st.session_state["fc_due_only_value"] = due_only
+        st.session_state["fc_search_term_value"] = search_term
+
+        filtered_df = filter_flashcards_df(
+            df, deck_filter, subject_filter, topic_filter, type_filter, search_term, due_only=due_only
+        )
 
         a1, a2 = st.columns([1, 1])
         with a1:
-            if st.button("Abrir revisão dos flashcards", key="fc_open_player", use_container_width=True):
+            if st.button("Abrir revisão embaralhada", key="fc_open_player", use_container_width=True):
                 st.session_state.flashcard_fullscreen = True
                 st.session_state.flashcard_index = 0
                 st.session_state.flashcard_show_answer = False
                 st.session_state.flashcard_show_note = False
+                st.session_state.flashcard_queue_ids = filtered_df.sample(frac=1).reset_index(drop=True)["id"].astype(int).tolist() if not filtered_df.empty else []
                 safe_rerun()
         with a2:
             st.markdown(
@@ -3065,46 +3870,7 @@ def render_flashcards_page():
                 unsafe_allow_html=True
             )
 
-        if filtered_df.empty:
-            st.markdown('<div class="b4-empty" style="margin-top:12px;">Nenhum flashcard encontrado.</div>', unsafe_allow_html=True)
-        else:
-            preview_df = filtered_df.head(20).copy()
-            st.markdown('<div style="margin-top:12px;"></div>', unsafe_allow_html=True)
-
-            for _, row in preview_df.iterrows():
-                card_id = int(row["id"])
-                q = normalize_text(row.get("question", ""))
-                deck = normalize_text(row.get("deck", ""))
-                subject = normalize_text(row.get("subject", ""))
-                topic = normalize_text(row.get("topic", ""))
-                due_date = normalize_text(row.get("due_date", ""))
-
-                meta_parts = []
-                if deck:
-                    meta_parts.append(deck)
-                if subject:
-                    meta_parts.append(subject)
-                if topic:
-                    meta_parts.append(topic)
-                if due_date:
-                    meta_parts.append(f"Revisão: {due_date}")
-
-                st.markdown(
-                    (
-                        '<div class="fc-list-item">'
-                        f'<div class="fc-list-q">{html.escape(q)}</div>'
-                        f'<div class="fc-list-meta">{html.escape(" • ".join(meta_parts) if meta_parts else "-")}</div>'
-                        '</div>'
-                    ),
-                    unsafe_allow_html=True
-                )
-
-                if st.button("Excluir flashcard", key=f"delete_flashcard_{card_id}", use_container_width=True):
-                    if delete_flashcard(card_id):
-                        safe_rerun()
-
         st.markdown("</div>", unsafe_allow_html=True)
-
 
 # =========================================================
 # SIMULADOS
@@ -3449,6 +4215,15 @@ def build_report_data(user_id: int):
     flashcards_df = fetch_flashcards_df(user_id)
     mocks_df = fetch_mocks_df(user_id)
     mock_area_scores_df = fetch_mock_area_scores_df(user_id)
+    flashcard_reviews_df = fetch_dataframe(
+        """
+        SELECT *
+        FROM flashcard_reviews
+        WHERE user_id = ?
+        ORDER BY review_date DESC, id DESC
+        """,
+        (user_id,)
+    )
     goal = get_user_goal(user_id)
 
     questions_summary = build_questions_summary(sessions_df)
@@ -3473,7 +4248,7 @@ def build_report_data(user_id: int):
     if not sessions_df.empty:
         base = sessions_df.copy()
         base["subject"] = base["subject"].fillna("").astype(str).str.strip()
-        base["subject"] = base["subject"].where(base["subject"] != "", "Sem matéria")
+        base["subject"] = base["subject"].where(base["subject"] != "", "Sem tema")
         subject_summary = base.groupby("subject", as_index=False)[["questions_done", "correct_answers", "study_minutes"]].sum()
         subject_summary["accuracy"] = 0.0
         mask = subject_summary["questions_done"] > 0
@@ -3486,6 +4261,7 @@ def build_report_data(user_id: int):
         "sessions_df": sessions_df,
         "schedule_df": schedule_df,
         "flashcards_df": flashcards_df,
+        "flashcard_reviews_df": flashcard_reviews_df,
         "mocks_df": mocks_df,
         "mock_area_scores_df": mock_area_scores_df,
         "goal": goal,
@@ -3495,6 +4271,263 @@ def build_report_data(user_id: int):
         "topic_ranking": topic_ranking,
         "subject_summary": subject_summary,
     }
+
+
+def build_situational_diagnosis(report: dict):
+    qs = report["questions_summary"]
+    ss = report["schedule_summary"]
+    ms = report["mock_summary"]
+    goal = report["goal"]
+    topic_ranking = report["topic_ranking"]
+    flashcards_df = report["flashcards_df"]
+    flashcard_reviews_df = report["flashcard_reviews_df"]
+
+    strengths = []
+    weaknesses = []
+    suggestions = []
+
+    daily_questions_goal = to_int(goal.get("daily_questions_goal", 50), 50)
+    daily_flashcard_goal = to_int(goal.get("daily_flashcard_goal", 100), 100)
+    daily_minutes_goal = to_int(goal.get("daily_minutes_goal", 180), 180)
+    stage_name = normalize_text(goal.get("study_stage", "Amador")) or "Amador"
+
+    reviewed_today = 0
+    if not flashcard_reviews_df.empty and "review_date" in flashcard_reviews_df.columns:
+        reviewed_today = int((flashcard_reviews_df["review_date"].fillna("").astype(str) == date.today().isoformat()).sum())
+
+    due_today = 0
+    if not flashcards_df.empty and "due_date" in flashcards_df.columns:
+        due_today = int((flashcards_df["due_date"].fillna(date.today().isoformat()).astype(str) <= date.today().isoformat()).sum())
+
+    execution_rate = round((ss["done"] / ss["total"]) * 100, 1) if ss["total"] > 0 else 0.0
+
+    if qs["overall_accuracy"] >= 75:
+        strengths.append(f"Acurácia geral consistente em {qs['overall_accuracy']}%.")
+    elif qs["overall_accuracy"] >= 65:
+        strengths.append(f"Acurácia geral razoável em {qs['overall_accuracy']}%, com espaço para refinamento.")
+        weaknesses.append(f"Acurácia geral ainda abaixo do ideal competitivo em {qs['overall_accuracy']}%.")
+    else:
+        weaknesses.append(f"Acurácia geral baixa em {qs['overall_accuracy']}%, sugerindo falhas de consolidação.")
+
+    if qs["today_questions"] >= daily_questions_goal:
+        strengths.append(f"Meta diária de questões atingida com {qs['today_questions']} questões.")
+    else:
+        weaknesses.append(f"Meta diária de questões não atingida: {qs['today_questions']}/{daily_questions_goal}.")
+
+    if reviewed_today >= daily_flashcard_goal:
+        strengths.append(f"Meta diária de flashcards atingida com {reviewed_today} revisões.")
+    else:
+        weaknesses.append(f"Meta diária de flashcards não atingida: {reviewed_today}/{daily_flashcard_goal}.")
+
+    if qs["today_minutes"] >= daily_minutes_goal:
+        strengths.append(f"Tempo diário de estudo compatível com a meta, totalizando {qs['today_minutes']} min.")
+    else:
+        weaknesses.append(f"Tempo diário de estudo abaixo da meta: {qs['today_minutes']}/{daily_minutes_goal} min.")
+
+    if execution_rate >= 70:
+        strengths.append(f"Boa execução do cronograma, com {execution_rate}% dos itens concluídos.")
+    elif ss["total"] > 0:
+        weaknesses.append(f"Execução do cronograma abaixo do ideal, com {execution_rate}% de conclusão.")
+    else:
+        weaknesses.append("Ainda não há itens cadastrados no cronograma para avaliação estratégica.")
+
+    if ms["count"] >= 2:
+        strengths.append(f"Boa exposição a simulados, com {ms['count']} registros e média de {ms['avg_score']}%.")
+    else:
+        weaknesses.append("Baixa exposição a simulados no período analisado.")
+
+    if due_today > 0:
+        weaknesses.append(f"Há {due_today} flashcards vencidos aguardando revisão.")
+
+    if not topic_ranking.empty:
+        best_topic = topic_ranking.iloc[0]
+        worst_topic = topic_ranking.sort_values(["accuracy", "questions_done"], ascending=[True, False]).iloc[0]
+        strengths.append(f"Melhor subtópico atual: {best_topic['topic_display']} ({best_topic['accuracy']}%).")
+        weaknesses.append(f"Subtópico com maior necessidade de reforço: {worst_topic['topic_display']} ({worst_topic['accuracy']}%).")
+
+    suggestions.append(f"Manter rotina compatível com o estágio atual: {stage_name}.")
+    suggestions.append("Priorizar revisão dos subtópicos de pior acurácia antes de ampliar carga de conteúdo novo.")
+    suggestions.append("Transformar erros recorrentes em flashcards com resposta curta e nota explicativa objetiva.")
+    suggestions.append("Usar simulados seriados para recalibrar prioridades semanais e redistribuir energia entre áreas.")
+    suggestions.append("Reservar bloco fixo diário para revisão de flashcards vencidos antes das novas adições.")
+
+    return {
+        "strengths": strengths if strengths else ["Ainda não há dados suficientes para identificar pontos fortes com segurança."],
+        "weaknesses": weaknesses if weaknesses else ["Ainda não há dados suficientes para identificar pontos fracos com segurança."],
+        "suggestions": suggestions,
+    }
+
+
+def generate_pdf_report(report: dict, diagnosis: dict, username: str = ""):
+    from io import BytesIO
+
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    draw_pdf_background(c)
+    draw_pdf_header(c, subtitle="Diagnóstico situacional premium")
+    draw_pdf_footer(c, username=username)
+
+    y = height - 2.8 * cm
+
+    qs = report["questions_summary"]
+    ss = report["schedule_summary"]
+    ms = report["mock_summary"]
+    goal = report["goal"]
+    topic_ranking = report["topic_ranking"]
+
+    c.setFillColorRGB(0.08, 0.16, 0.30)
+    c.setFont("Helvetica-Bold", 17)
+    c.drawString(2.0 * cm, y, "Relatório Diagnóstico Situacional")
+    y -= 0.70 * cm
+
+    c.setFillColorRGB(0.36, 0.42, 0.52)
+    c.setFont("Helvetica", 9.5)
+    c.drawString(2.0 * cm, y, "Leitura estratégica consolidada da rotina, desempenho e retenção.")
+    y -= 0.95 * cm
+
+    # Cards superiores
+    box_y = y
+    draw_pdf_highlight_box(
+        c, 2.0 * cm, box_y, 5.4 * cm, 2.6 * cm, "Estágio",
+        [
+            f"{goal.get('study_stage', 'Amador')}",
+            f"Questões/dia: {to_int(goal.get('daily_questions_goal', 50), 50)}",
+        ]
+    )
+    draw_pdf_highlight_box(
+        c, 7.9 * cm, box_y, 5.4 * cm, 2.6 * cm, "Flashcards",
+        [
+            f"Meta/dia: {to_int(goal.get('daily_flashcard_goal', 100), 100)}",
+            f"Base atual: {len(report['flashcards_df'])}",
+        ]
+    )
+    draw_pdf_highlight_box(
+        c, 13.8 * cm, box_y, 5.2 * cm, 2.6 * cm, "Simulados",
+        [
+            f"Quantidade: {ms['count']}",
+            f"Média: {ms['avg_score']}%",
+        ]
+    )
+
+    y -= 3.15 * cm
+
+    y = draw_pdf_section_title(c, "Resumo executivo", 2.0 * cm, y)
+    summary_lines = [
+        f"Questões totais: {qs['total_questions']} • Acertos: {qs['total_correct']} • Acurácia geral: {qs['overall_accuracy']}%.",
+        f"Tempo total estudado: {qs['total_minutes']} minutos • Hoje: {qs['today_minutes']} minutos.",
+        f"Cronograma: {ss['done']} itens concluídos de {ss['total']} planejados • {ss['pending']} pendentes.",
+        f"Simulados: {ms['count']} registros • Média global: {ms['avg_score']}% • Melhor resultado: {ms['best_score']}%.",
+    ]
+
+    c.setFillColorRGB(0.18, 0.22, 0.28)
+    for line in summary_lines:
+        y = draw_pdf_multiline(
+            c,
+            line,
+            2.0 * cm,
+            y,
+            max_width=17.0 * cm,
+            line_height=0.50 * cm,
+            font_name="Helvetica",
+            font_size=10
+        )
+        y -= 0.04 * cm
+
+    if y < 7.5 * cm:
+        y = pdf_new_page(c, "Continuação do relatório")
+        draw_pdf_footer(c, username=username)
+
+    y -= 0.30 * cm
+    y = draw_pdf_section_title(c, "Pontos fortes", 2.0 * cm, y)
+    c.setFillColorRGB(0.16, 0.22, 0.28)
+    for item in diagnosis["strengths"]:
+        y = draw_pdf_multiline(
+            c,
+            f"• {item}",
+            2.1 * cm,
+            y,
+            max_width=16.8 * cm,
+            line_height=0.48 * cm,
+            font_name="Helvetica",
+            font_size=10
+        )
+        y -= 0.03 * cm
+        if y < 4.5 * cm:
+            y = pdf_new_page(c, "Continuação do relatório")
+            draw_pdf_footer(c, username=username)
+
+    y -= 0.20 * cm
+    y = draw_pdf_section_title(c, "Pontos fracos", 2.0 * cm, y)
+    c.setFillColorRGB(0.16, 0.22, 0.28)
+    for item in diagnosis["weaknesses"]:
+        y = draw_pdf_multiline(
+            c,
+            f"• {item}",
+            2.1 * cm,
+            y,
+            max_width=16.8 * cm,
+            line_height=0.48 * cm,
+            font_name="Helvetica",
+            font_size=10
+        )
+        y -= 0.03 * cm
+        if y < 4.5 * cm:
+            y = pdf_new_page(c, "Continuação do relatório")
+            draw_pdf_footer(c, username=username)
+
+    y -= 0.20 * cm
+    y = draw_pdf_section_title(c, "Sugestões de melhoria", 2.0 * cm, y)
+    c.setFillColorRGB(0.16, 0.22, 0.28)
+    for item in diagnosis["suggestions"]:
+        y = draw_pdf_multiline(
+            c,
+            f"• {item}",
+            2.1 * cm,
+            y,
+            max_width=16.8 * cm,
+            line_height=0.48 * cm,
+            font_name="Helvetica",
+            font_size=10
+        )
+        y -= 0.03 * cm
+        if y < 4.5 * cm:
+            y = pdf_new_page(c, "Continuação do relatório")
+            draw_pdf_footer(c, username=username)
+
+    if not topic_ranking.empty:
+        if y < 7.0 * cm:
+            y = pdf_new_page(c, "Continuação do relatório")
+            draw_pdf_footer(c, username=username)
+
+        y -= 0.10 * cm
+        y = draw_pdf_section_title(c, "Leitura dos subtópicos", 2.0 * cm, y)
+
+        best_topic = topic_ranking.iloc[0]
+        worst_topic = topic_ranking.sort_values(["accuracy", "questions_done"], ascending=[True, False]).iloc[0]
+
+        topic_lines = [
+            f"Melhor subtópico atual: {best_topic['topic_display']} com {best_topic['accuracy']}% de acurácia em {int(best_topic['questions_done'])} questões.",
+            f"Subtópico de maior atenção: {worst_topic['topic_display']} com {worst_topic['accuracy']}% de acurácia em {int(worst_topic['questions_done'])} questões.",
+        ]
+
+        for line in topic_lines:
+            y = draw_pdf_multiline(
+                c,
+                line,
+                2.0 * cm,
+                y,
+                max_width=17.0 * cm,
+                line_height=0.50 * cm,
+                font_name="Helvetica",
+                font_size=10
+            )
+            y -= 0.04 * cm
+
+    c.save()
+    buffer.seek(0)
+    return buffer.getvalue()
 
 
 def make_csv_download(df: pd.DataFrame):
@@ -3536,10 +4569,16 @@ def render_report_kpis(report: dict):
 
 def render_reports_page():
     report = build_report_data(st.session_state.user_id)
+    diagnosis = build_situational_diagnosis(report)
+    pdf_bytes = generate_pdf_report(
+        report,
+        diagnosis,
+        username=st.session_state.get("username", "")
+    )
 
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">Relatórios</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-subtitle">Leitura gerencial do seu desempenho com tabelas, ranking e exportações.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-subtitle">Leitura gerencial com diagnóstico situacional premium e exportações.</div>', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="top-spacer-md"></div>', unsafe_allow_html=True)
@@ -3561,7 +4600,8 @@ def render_reports_page():
         st.markdown('<div class="b5-sub">Panorama consolidado da operação de estudo.</div>', unsafe_allow_html=True)
 
         for name, text in [
-            ("Metas atuais", f"Questões/dia: {to_int(goal.get('daily_questions_goal', 60), 60)} • Tempo/dia: {to_int(goal.get('daily_minutes_goal', 180), 180)} min • Simulados/mês: {to_int(goal.get('monthly_mock_goal', 4), 4)}"),
+            ("Estágio atual", f"{goal.get('study_stage', 'Amador')}"),
+            ("Metas atuais", f"Questões/dia: {to_int(goal.get('daily_questions_goal', 50), 50)} • Flashcards/dia: {to_int(goal.get('daily_flashcard_goal', 100), 100)} • Tempo/dia: {to_int(goal.get('daily_minutes_goal', 180), 180)} min"),
             ("Questões", f"{qs['total_questions']} feitas • {qs['total_correct']} acertos • {qs['overall_accuracy']}% de acurácia"),
             ("Cronograma", f"{ss['total']} itens planejados • {ss['done']} concluídos • {ss['pending']} pendentes"),
             ("Simulados", f"{ms['count']} registros • média {ms['avg_score']}% • melhor resultado {ms['best_score']}%"),
@@ -3578,27 +4618,23 @@ def render_reports_page():
         st.markdown("</div>", unsafe_allow_html=True)
 
     with col2:
-        best_topic = "-"
-        worst_topic = "-"
+        st.markdown('<div class="b5-card">', unsafe_allow_html=True)
+        st.markdown('<div class="b5-title">Diagnóstico situacional</div>', unsafe_allow_html=True)
+        st.markdown('<div class="b5-sub">Pontos fortes, fracos e sugestões automáticas.</div>', unsafe_allow_html=True)
 
-        if not topic_ranking.empty:
-            best_topic = f"{topic_ranking.iloc[0]['topic_display']} ({topic_ranking.iloc[0]['accuracy']}%)"
-            worst_sorted = topic_ranking.sort_values(["accuracy", "questions_done"], ascending=[True, False]).reset_index(drop=True)
-            worst_topic = f"{worst_sorted.iloc[0]['topic_display']} ({worst_sorted.iloc[0]['accuracy']}%)"
+        st.markdown("**Pontos fortes**")
+        for item in diagnosis["strengths"]:
+            st.markdown(f"- {item}")
 
-        st.markdown(
-            (
-                '<div class="b5-highlight">'
-                '<div class="b5-highlight-title">Leitura estratégica</div>'
-                '<div class="b5-highlight-text">'
-                f'Seu melhor subtópico atual é <b>{html.escape(str(best_topic))}</b>.<br><br>'
-                f'O subtópico com maior necessidade de reforço é <b>{html.escape(str(worst_topic))}</b>.<br><br>'
-                'Use essa leitura para ajustar revisões, priorizar subtópicos fracos e calibrar o cronograma semanal.'
-                '</div>'
-                '</div>'
-            ),
-            unsafe_allow_html=True
-        )
+        st.markdown("**Pontos fracos**")
+        for item in diagnosis["weaknesses"]:
+            st.markdown(f"- {item}")
+
+        st.markdown("**Sugestões**")
+        for item in diagnosis["suggestions"]:
+            st.markdown(f"- {item}")
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="top-spacer-md"></div>', unsafe_allow_html=True)
     col3, col4 = st.columns([1, 1], gap="large")
@@ -3623,14 +4659,14 @@ def render_reports_page():
 
     with col4:
         st.markdown('<div class="b5-card">', unsafe_allow_html=True)
-        st.markdown('<div class="b5-title">Resumo por matéria</div>', unsafe_allow_html=True)
-        st.markdown('<div class="b5-sub">Volume, acurácia e tempo estudado por matéria.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="b5-title">Resumo por tema</div>', unsafe_allow_html=True)
+        st.markdown('<div class="b5-sub">Volume, acurácia e tempo estudado por tema.</div>', unsafe_allow_html=True)
 
         if subject_summary.empty:
-            st.markdown('<div class="b5-empty">Ainda não há dados suficientes para resumo por matéria.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="b5-empty">Ainda não há dados suficientes para resumo por tema.</div>', unsafe_allow_html=True)
         else:
             view_df = subject_summary.rename(columns={
-                "subject": "Matéria",
+                "subject": "Tema",
                 "questions_done": "Questões",
                 "correct_answers": "Acertos",
                 "accuracy": "Acurácia (%)",
@@ -3666,9 +4702,9 @@ def render_reports_page():
     st.markdown('<div class="top-spacer-md"></div>', unsafe_allow_html=True)
     st.markdown('<div class="b5-card">', unsafe_allow_html=True)
     st.markdown('<div class="b5-title">Exportações</div>', unsafe_allow_html=True)
-    st.markdown('<div class="b5-sub">Baixe suas bases para análise externa.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="b5-sub">Baixe suas bases e o relatório situacional em PDF.</div>', unsafe_allow_html=True)
 
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     with c1:
         csv_data = make_csv_download(report["sessions_df"])
         st.download_button("Questões", data=csv_data if csv_data else b"", file_name="questoes.csv", mime="text/csv", use_container_width=True, disabled=(csv_data is None))
@@ -3684,9 +4720,16 @@ def render_reports_page():
     with c5:
         csv_data = make_csv_download(report["mock_area_scores_df"])
         st.download_button("Áreas", data=csv_data if csv_data else b"", file_name="simulados_por_area.csv", mime="text/csv", use_container_width=True, disabled=(csv_data is None))
+    with c6:
+        st.download_button(
+            "Relatório PDF",
+            data=pdf_bytes,
+            file_name="relatorio_diagnostico_situacional.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
 
     st.markdown("</div>", unsafe_allow_html=True)
-
 
 # =========================================================
 # ADMINISTRAÇÃO
@@ -3813,8 +4856,7 @@ def render_footer_premium():
         text-align:center;
         box-shadow: 0 12px 30px rgba(0,0,0,.18);
     ">
-        🩺 <b>Mentoria do Jhon</b> • Plataforma premium de acompanhamento • Fase 4 concluída
-    </div>
+        🩺 <b>Mentoria do Jhon</b> • Plataforma premium de acompanhamento •     </div>
     """)
 
 
