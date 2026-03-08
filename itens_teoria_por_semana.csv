@@ -1,0 +1,203 @@
+﻿semana,tarefa_num,nome_tarefa,grande_area
+1,1,Medicina de Família e Comunidade,Preventiva
+1,2,Atenção Primária à Saúde,Preventiva
+1,3,Saúde do idoso,Preventiva
+1,4,Urgências Abdominais - Abdome Agudo,Cirurgia
+1,5,Abdome Agudo Inflamatório - Apendicite Aguda,Cirurgia
+1,6,Abdome Agudo Inflamatório - Colecistite e Colangite Aguda,Cirurgia
+1,7,Abdome Agudo Inflamatório - Diverticulite Aguda,Cirurgia
+1,8,Pancreatite Aguda e Crônica (Pancreatites),Cirurgia
+2,1,Abdome Agudo Vascular,Cirurgia
+2,2,Abdome Agudo Hemorrágico,Cirurgia
+2,3,Abdome Agudo Perfurativo,Cirurgia
+2,4,Abdome Agudo Obstrutivo,Cirurgia
+2,5,Vesícula e Vias Biliares,Cirurgia
+2,6,Abdome agudo em ginecologia,Cirurgia
+2,7,Imunizações,Pediatria
+2,8,Ética Médica,Preventiva
+2,9,Bases de saúde do trabalhador (SOMENTE ACIDENTE DE TRABALHO),Preventiva
+3,1,Ciclo Menstrual,Ginecologia
+3,2,Amenorreia,Ginecologia
+3,3,Sangramento uterino anormal,Ginecologia
+3,4,Miomatose uterina,Ginecologia
+3,5,Síndrome dos Ovários Policísticos,Ginecologia
+3,6,Endometriose,Ginecologia
+3,7,Adenomiose,Ginecologia
+3,8,Processo Saúde- Doença,Preventiva
+3,9,Vigilância em Saúde,Preventiva
+3,10,Sistemas de Informação em Saúde,Preventiva
+4,1,Modificações fisiológicas da gestação,Obstetrícia
+4,2,Pré-Natal,Obstetrícia
+4,3,Gestação múltipla,Obstetrícia
+4,4,Aloimunização Materna e Doença Hemolítica Perinatal,Obstetrícia
+4,5,"Trauma - Avaliação Inicial, Vias Aéreas e Trauma Torácico",Cirurgia
+4,6,Trauma Abdominal e pélvico,Cirurgia
+4,7,Trauma - Choque,Cirurgia
+4,8,Queimaduras e Trauma Elétrico,Cirurgia
+5,1,"Hipertensão Arterial Sistêmica (Parte 1): Diagnóstico, Classificação, Avaliação Clínico- laboratorial e Estratificação de Risco Cardiovascular",Cardiologia
+5,2,Hipertensão Arterial Sistêmica (Parte 2): Tratamento,Cardiologia
+5,3,Hipertensão Arterial Sistêmica (Parte 3): Secundária e Crise Hipertensiva,Cardiologia
+5,4,"Insuficiência Cardíaca (Parte 1): Classificação, Fisiopatologia, Diagnóstico e Exames Complementares",Cardiologia
+5,5,Insuficiência Cardíaca (Parte 2): Tratamento,Cardiologia
+5,6,Insuficiência Cardíaca Aguda,Cardiologia
+5,7,Choque,Cardiologia
+5,8,Crescimento,Pediatria
+5,9,Desenvolvimento Neuropsicomotor (DNPM),Pediatria
+5,10,Aleitamento materno,Pediatria
+5,11,Puberdade,Pediatria
+5,12,Obesidade infantil,Pediatria
+5,13,Tópicos em pediatria,Pediatria
+6,1,Temas Gerais em Cirurgia,Cirurgia
+6,2,Cicatrização de Feridas,Cirurgia
+6,3,Medicina Perioperatória,Cirurgia
+6,4,Complicações Pós- Operatórias,Cirurgia
+6,5,Resposta Endocrinometabólica ao Trauma,Cirurgia
+6,6,Pesquisa Epidemiológica e Medidas de Associação,Preventiva
+6,7,Testes Diagnósticos,Preventiva
+7,1,Vulvovaginites,Ginecologia
+7,2,Úlceras Genitais,Ginecologia
+7,3,Doença Inflamatória Pélvica (DIP),Ginecologia
+7,4,Assistência à Vítima de Violência Sexual,Ginecologia
+7,5,Vitalidade Fetal,Obstetrícia
+7,6,Diabetes Mellitus na Gestação,Obstetrícia
+7,7,Síndromes Hipertensivas na Gestação,Obstetrícia
+7,8,Cardiopatias Congênitas,Pediatria
+7,9,Febre reumática,Pediatria
+8,1,Intoxicações Exógenas,Psiquiatria
+8,2,Dependência Química,Psiquiatria
+8,3,Psicofarmacologia,Psiquiatria
+8,4,Transtornos Psicóticos,Psiquiatria
+8,5,Transtornos do Humor,Psiquiatria
+8,6,Psiquiatria Infantil,Psiquiatria
+8,7,Rastreamento do Câncer de Colo Uterino,Ginecologia
+8,8,Câncer de Colo Uterino,Ginecologia
+8,9,Câncer do Corpo do Útero,Ginecologia
+8,10,Tumores Anexiais e Câncer de Ovário,Ginecologia
+8,11,Sífilis e outras ISTs,Infectologia
+8,12,HIV,Infectologia
+8,13,Tuberculose,Infectologia
+9,1,Bronquiolite,Pediatria
+9,2,Coqueluche,Pediatria
+9,3,Pneumonias na Infância,Pediatria
+9,4,Infecções de Vias Aéreas Superiores - Parte II,Pediatria
+9,5,Asma (Pediatria),Pediatria
+9,6,Tuberculose na infância,Pediatria
+9,7,Fibrose cística,Pediatria
+9,8,Hérnias de parede abdominal,Cirurgia
+9,9,Cirurgia Bariátrica e Metabólica (Tratamento Cirúrgico da Obesidade),Cirurgia
+9,10,Proctologia,Cirurgia
+9,11,Polipose Intestinal e Câncer Colorretal,Cirurgia
+9,12,Neoplasias de Estômago e Esôfago,Cirurgia
+11,1,Assistência ao Parto,Obstetrícia
+11,2,Partograma e Distócias,Obstetrícia
+11,3,Parto Vaginal Operatório,Obstetrícia
+11,4,Indução do Parto e Pós-Datismo,Obstetrícia
+11,5,Reanimação Neonatal,Pediatria
+11,6,Cuidados Neonatais,Pediatria
+11,7,Icterícia e Sepse Neonatal,Pediatria
+11,8,Infecções Congênitas,Pediatria
+11,9,Sífilis Congênita,Pediatria
+12,1,Medidas de Saúde Coletiva - Parte I: Indicadores de Morbidade,Preventiva
+12,2,Medidas de Saúde Coletiva - Parte II: Indicadores de Mortalidade,Preventiva
+12,3,Medidas de Saúde Coletiva - Parte III: Indicadores Demográficos + Transição Demográfica-Epidemiológica,Preventiva
+12,4,Síndrome do intestino irritável,Gastroenterologia
+12,5,Doença do refluxo gastroesofágico,Gastroenterologia
+12,6,Doença Inflamatória Intestinal,Gastroenterologia
+12,7,Neoplasias Pancreáticas,Gastroenterologia
+12,8,Sangramentos da Primeira Metade,Obstetrícia
+12,9,Sangramentos da Segunda Metade,Obstetrícia
+12,10,Hemorragia Pós- Parto,Obstetrícia
+13,1,Parada Cardiorrespiratória,Cardiologia
+13,2,Fibrilação e Flutter Atrial,Cardiologia
+13,3,Taquiarritmias,Cardiologia
+13,4,Doença Arterial Coronariana Estável (DAC Estável),Cardiologia
+13,5,SCASSST - Síndrome Coronária Aguda Sem Supra do Segmento ST,Cardiologia
+13,6,IAMCSSST - Infarto Agudo do Miocárdio com Supradesnivelamento de Segmento ST,Cardiologia
+13,7,Traumatismo Cranioencefálico,Neurologia
+13,8,Acidente Vascular Encefálico,Neurologia
+13,9,Epilepsias,Neurologia
+13,10,Rastreamento de Câncer de Mama,Ginecologia
+13,11,Câncer de mama,Ginecologia
+14,1,Cirurgia infantil I,Cirurgia
+14,2,Cirurgia infantil II,Cirurgia
+14,3,Cirurgia infantil III,Cirurgia
+14,4,Diarreia,Pediatria
+14,5,Constipação Intestinal,Pediatria
+14,6,Alergia Alimentar,Pediatria
+14,7,Arboviroses,Infectologia
+14,8,Leptospirose,Infectologia
+14,9,Síndromes Febris Íctero-hemorrágicas,Infectologia
+15,1,Doenças exantemáticas,Pediatria
+15,2,Doença de Kawasaki,Pediatria
+15,3,Púrpura de Henoch- Schönlein,Pediatria
+15,4,Introdução ao Diabetes Mellitus,Endocrinologia
+15,5,Diabetes Mellitus Tipo 2,Endocrinologia
+15,6,Diabetes Mellitus - Complicações Agudas,Endocrinologia
+15,7,Diabetes Mellitus - Complicações Crônicas,Endocrinologia
+15,8,Infecções Congênitas na Gestação,Obstetrícia
+15,9,Sífilis na Gestação e Sífilis Congênita,Obstetrícia
+15,10,Infecção Puerperal,Obstetrícia
+16,1,Leucemias Agudas,Hematologia
+16,2,"Leucemias Crônicas, Linfomas, Mielodisplasias e Mieloproliferações",Hematologia
+16,3,Mieloma Múltiplo (Gamopatias Monoclonais),Hematologia
+16,4,Medicina Transfusional,Hematologia
+16,5,Climatério e Terapia Hormonal,Ginecologia
+16,6,Incontinência Urinária,Ginecologia
+16,7,Oncologia Cutânea,Dermatologia
+16,8,Dermatoses Infecciosas,Dermatologia
+16,9,Hanseníase,Dermatologia
+17,1,Planejamento Familiar,Ginecologia
+17,2,Infertilidade Conjugal,Ginecologia
+17,3,Princípios e Diretrizes do SUS,Preventiva
+17,4,Processos de Descentralização e Regionalização do SUS,Preventiva
+17,5,Financiamento em Saúde,Preventiva
+17,6,"Cirurgia de Cabeça e Pescoço - Manejo dos Nódulos de Tireoide, Câncer de Tireoide e Tireoidectomia Total",Endocrinologia
+17,7,Tireoide - Hipotireoidismo,Endocrinologia
+17,8,"Tireoide - Tireotoxicose: Diagnóstico, Etiologia, Tratamento, Tireotoxicose na Gestação e Crise Tireotóxica Total",Endocrinologia
+18,1,Neoplasias Pulmonares,Pneumologia
+18,2,"Miscelânea (Interstício, Bronquiectasias, Hipertensão Pulmonar e Pneumotórax)",Pneumologia
+18,3,Asma,Pneumologia
+18,4,Pneumologia Intensiva,Pneumologia
+18,5,TPP - Prematuridade e Trabalho de Parto Prematuro,Obstetrícia
+18,6,Rotura Prematura de Membranas (RPM),Obstetrícia
+18,7,Alteração do Volume de Líquido Amniótico,Obstetrícia
+18,8,Restrição de Crescimento Fetal e Óbito Fetal,Obstetrícia
+19,1,"Doenças Neuromusculares (Neuropatias Periféricas, Miopatias, Doenças da Junção Neuromuscular e Doença do Neurônio Motor)",Neurologia
+19,2,Distúrbios do Movimento,Neurologia
+19,3,Demências,Neurologia
+19,4,Hepatites Virais,Hepatologia
+19,5,Hepatites Autoimunes,Hepatologia
+19,6,Tumores Hepáticos,Hepatologia
+19,7,Cirrose Hepática,Hepatologia
+19,8,Antibióticos,Infectologia
+19,9,Pneumonias Bacterianas,Infectologia
+19,10,Meningites,Infectologia
+19,11,Sepse,Infectologia
+21,1,Lesão Renal Aguda (LRA),Nefrologia
+21,2,Doenças Glomerulares,Nefrologia
+21,3,Doenças Inflamatórias do Tecido Conjuntivo II,Reumatologia
+21,4,Doenças Autoimunes do Tecido Conjuntivo,Reumatologia
+21,5,Vasculites,Reumatologia
+22,1,Emergências pediátricas,Pediatria
+22,2,Anafilaxia e Urticária,Pediatria
+22,3,Convulsão Febril,Pediatria
+22,4,Espondiloartrites,Reumatologia
+22,5,Artrite Reumatoide,Reumatologia
+22,6,Artrites Microcristalinas,Reumatologia
+23,1,Fraturas e Luxações,Ortopedia
+23,2,Fratura Exposta,Ortopedia
+23,3,Doenças da Coluna Vertebral,Ortopedia
+23,4,Quadril Pediátrico,Ortopedia
+23,5,Ombro e Joelho Pediátrico,Ortopedia
+24,1,Introdução ao Estudo das Anemias,Hematologia
+24,2,Anemias Hemolíticas,Hematologia
+24,3,Anemias Microcíticas,Hematologia
+24,4,Anemias Macrocíticas,Hematologia
+24,5,Anemias Associadas a Condições Não Hematológicas,Hematologia
+25,1,Distúrbios do Sódio - Disnatremias,Nefrologia
+25,2,Distúrbios Ácido- Básicos,Nefrologia
+25,3,Análise da Gasometria Arterial,Nefrologia
+25,4,Cirurgia Vascular,Cirurgia
+25,5,Cirurgia Plástica,Cirurgia
+25,6,"Cirurgia de Cabeça e Pescoço - Neoplasias Benignas e Malignas de Cabeça e Pescoço, Doenças Congênitas Cervicofaciais e Traqueostomia",Cirurgia
+25,7,Urologia,Cirurgia
