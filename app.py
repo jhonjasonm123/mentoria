@@ -10269,16 +10269,16 @@ def main():
     ensure_questions_review_schema()
     inject_global_css()
     inject_dashboard_css()
-    try:
     init_taxonomia_tables()
     semear_taxonomia_padrao()
-except Exception as e:
-    st.error(f"Erro ao inicializar taxonomia: {e}")
-    st.stop()
 
     if not st.session_state.logged_in:
+    try:
         render_login_screen()
-        return
+    except Exception as e:
+        st.error(f"Erro ao carregar login: {e}")
+        st.stop()
+    return
 
     current_menu = st.session_state.get("menu", "Visão Geral")
     is_flashcard_fullscreen = (
@@ -10322,3 +10322,4 @@ except Exception as e:
 if __name__ == "__main__":
 
     main()
+
