@@ -10272,13 +10272,9 @@ def main():
     init_taxonomia_tables()
     semear_taxonomia_padrao()
 
-    if not st.session_state.logged_in:
-    try:
+   if not st.session_state.logged_in:
         render_login_screen()
-    except Exception as e:
-        st.error(f"Erro ao carregar login: {e}")
-        st.stop()
-    return
+        return
 
     current_menu = st.session_state.get("menu", "Visão Geral")
     is_flashcard_fullscreen = (
@@ -10322,4 +10318,5 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
