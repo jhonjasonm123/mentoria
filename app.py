@@ -24,6 +24,17 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
 from reportlab.lib.utils import ImageReader
 
+conn = sqlite3.connect("mentoria_jhon_fase4.db")
+cur = conn.cursor()
+
+cur.execute("""
+    UPDATE flashcards
+    SET materia = 'TEMAS GERAIS'
+    WHERE materia = 'TEMAIS GERAIS'
+""")
+
+conn.commit()
+conn.close()
 # =========================================================
 # HELPERS
 # RANKING MULTIUSUÁRIO + PDF PREMIUM DE SIMULADOS
@@ -8691,4 +8702,5 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
