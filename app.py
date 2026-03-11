@@ -5605,6 +5605,24 @@ def fetch_flashcards_df(user_id: int):
     return df
 
 
+def get_admin_and_student_user_ids(include_admin=False):
+    users_df = fetch_users_df()
+    if users_df.empty:
+        if include_admin and st.session_state.get("user_id"):
+            return [int(st.session_state.user_id)]
+        return []
+
+    ids = []
+
+    student_ids = users_df[users_df["is_admin"] == 0]["id"].astype(int).tolist()
+    ids.extend(student_ids)
+
+    if include_admin and st.session_state.get("user_id"):
+        ids.append(int(st.session_state.user_id))
+
+    return sorted(list(set(ids)))
+
+
 def add_flashcard_for_users(target_user_ids, deck: str, subject: str, topic: str, question: str, answer: str, note: str):
     ensure_flashcards_extended_schema()
 
@@ -5736,65 +5754,71 @@ def delete_flashcard(card_id: int):
         conn.close()
 
 
-def delete_flashcard_deck_for_user(user_id: int, deck_name: str):
-    deck_name = normalize_text(deck_name)
-    if not deck_name:
-        return False, "Selecione um deck."
+def delete_flashcards_by_scope_for_users(
+    target_user_ids,
+    delete_mode: str,
+    deck_name: str = "",
+    subject_name: str = "",
+    topic_name: str = "",
+    is_admin: bool = False
+):
+    if not is_admin:
+        return False, "Apenas o administrador pode apagar deck, matérias ou subtópicos."
 
-    conn = get_conn()
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            """
-            DELETE FROM flashcards
-            WHERE user_id = ?
-              AND deck = ?
-            """,
-            (int(user_id), deck_name)
-        )
-        deleted = cur.rowcount
-        conn.commit()
-
-        if deleted <= 0:
-            return False, "Nenhum card encontrado nesse deck."
-
-        return True, f"Deck excluído com sucesso. {deleted} card(s) removido(s)."
-    except Exception as e:
-        return False, f"Erro ao excluir deck: {e}"
-    finally:
-        conn.close()
-
-
-def delete_flashcard_deck_for_users(target_user_ids, deck_name: str):
-    deck_name = normalize_text(deck_name)
-    if not deck_name:
-        return False, "Selecione um deck."
     if not target_user_ids:
         return False, "Nenhum usuário selecionado."
+
+    delete_mode = normalize_text(delete_mode)
+    deck_name = normalize_text(deck_name)
+    subject_name = normalize_text(subject_name)
+    topic_name = normalize_text(topic_name)
+
+    if delete_mode == "Deck":
+        if not deck_name:
+            return False, "Selecione um deck."
+        where_sql = "deck = ?"
+        params_base = [deck_name]
+        label = f"deck '{deck_name}'"
+
+    elif delete_mode == "Matéria":
+        if not subject_name:
+            return False, "Selecione uma matéria."
+        where_sql = "subject = ?"
+        params_base = [subject_name]
+        label = f"matéria '{subject_name}'"
+
+    elif delete_mode == "Subtópico":
+        if not topic_name:
+            return False, "Selecione um subtópico."
+        where_sql = "topic = ?"
+        params_base = [topic_name]
+        label = f"subtópico '{topic_name}'"
+
+    else:
+        return False, "Modo de exclusão inválido."
 
     conn = get_conn()
     cur = conn.cursor()
     try:
         deleted_total = 0
+
         for user_id in sorted(set([int(x) for x in target_user_ids])):
-            cur.execute(
-                """
+            sql = f"""
                 DELETE FROM flashcards
                 WHERE user_id = ?
-                  AND deck = ?
-                """,
-                (int(user_id), deck_name)
-            )
+                  AND {where_sql}
+            """
+            cur.execute(sql, [user_id] + params_base)
             deleted_total += max(cur.rowcount, 0)
 
         conn.commit()
 
         if deleted_total <= 0:
-            return False, "Nenhum card encontrado nesse deck para os usuários selecionados."
+            return False, f"Nenhum card encontrado para {label}."
 
-        return True, f"Deck excluído com sucesso. {deleted_total} card(s) removido(s)."
+        return True, f"Exclusão concluída com sucesso: {deleted_total} card(s) removido(s) de {label}."
     except Exception as e:
-        return False, f"Erro ao excluir deck: {e}"
+        return False, f"Erro ao excluir flashcards: {e}"
     finally:
         conn.close()
 
@@ -6311,6 +6335,7 @@ def inject_flashcard_fullscreen_css():
         unsafe_allow_html=True
     )
 
+
 def render_flashcard_player(filtered_df: pd.DataFrame):
     inject_flashcard_fullscreen_css()
     queue_ids = prepare_flashcard_queue(filtered_df)
@@ -6379,7 +6404,6 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
     )
 
     st.markdown('<div class="fc-gap-after-question"></div>', unsafe_allow_html=True)
-
     st.markdown('<div class="fc-answer-slot">', unsafe_allow_html=True)
 
     if st.session_state.get("flashcard_show_answer", False):
@@ -6408,7 +6432,6 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
         )
 
     st.markdown('</div>', unsafe_allow_html=True)
-
     st.markdown('<div class="fc-buttons-wrap">', unsafe_allow_html=True)
     st.markdown('<div class="fc-small-buttons">', unsafe_allow_html=True)
 
@@ -6424,7 +6447,6 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
             safe_rerun()
 
     st.markdown('</div></div>', unsafe_allow_html=True)
-
     st.markdown('<div class="fc-rate-buttons">', unsafe_allow_html=True)
 
     r1, r2, r3, r4 = st.columns(4, gap="large")
@@ -6465,16 +6487,16 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
                 safe_rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
-
     st.markdown('<div class="fc-bottom-actions">', unsafe_allow_html=True)
+
     if st.button("Voltar", key="fc_back", use_container_width=True):
         st.session_state.flashcard_fullscreen = False
         st.session_state.flashcard_show_answer = False
         st.session_state.flashcard_show_note = False
         st.session_state.flashcard_queue_ids = []
         safe_rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
+    st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('<div class="fc-bottom-space"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -6502,7 +6524,7 @@ def render_flashcards_page():
 
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">Flashcards</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-subtitle">Basic + Cloze no mesmo baralho, revisão em sequência e exclusão de deck inteiro.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-subtitle">Basic + Cloze no mesmo baralho, revisão em sequência e exclusão em massa apenas para administrador.</div>', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="top-spacer-md"></div>', unsafe_allow_html=True)
@@ -6527,7 +6549,7 @@ def render_flashcards_page():
                 note = st.text_area("Nota / Explicação", placeholder="Digite a explicação adicional", key="fc_basic_note")
 
                 if st.session_state.get("is_admin", False):
-                    st.info("Como administrador, este flashcard será enviado para todos os alunos.")
+                    st.info("Como administrador, este flashcard será enviado para todos os alunos e também ficará disponível para sua revisão.")
                 else:
                     st.info("Este flashcard será salvo apenas para seu usuário.")
 
@@ -6535,7 +6557,7 @@ def render_flashcards_page():
 
             if submitted:
                 if st.session_state.get("is_admin", False):
-                    target_user_ids = get_all_student_user_ids()
+                    target_user_ids = get_admin_and_student_user_ids(include_admin=True)
                 else:
                     target_user_ids = [int(st.session_state.user_id)]
 
@@ -6567,7 +6589,7 @@ def render_flashcards_page():
                 note = st.text_area("Nota / Explicação", placeholder="Observação adicional", key="fc_cloze_note")
 
                 if st.session_state.get("is_admin", False):
-                    st.info("Como administrador, este cloze será enviado para todos os alunos.")
+                    st.info("Como administrador, este cloze será enviado para todos os alunos e também ficará disponível para sua revisão.")
                 else:
                     st.info("Este cloze será salvo apenas para seu usuário.")
 
@@ -6575,7 +6597,7 @@ def render_flashcards_page():
 
             if submitted_cloze:
                 if st.session_state.get("is_admin", False):
-                    target_user_ids = get_all_student_user_ids()
+                    target_user_ids = get_admin_and_student_user_ids(include_admin=True)
                 else:
                     target_user_ids = [int(st.session_state.user_id)]
 
@@ -6609,7 +6631,7 @@ def render_flashcards_page():
                 cloze_file = st.file_uploader("Arquivo CSV Cloze", type=["csv"], key="fc_csv_upload_cloze")
 
                 if st.session_state.get("is_admin", False):
-                    st.info("Como administrador, os arquivos importados serão enviados para todos os alunos.")
+                    st.info("Como administrador, os arquivos importados serão enviados para todos os alunos e também para o próprio admin revisar.")
                 else:
                     st.info("Os arquivos importados serão salvos apenas para seu usuário.")
 
@@ -6617,7 +6639,7 @@ def render_flashcards_page():
 
             if import_submitted:
                 if st.session_state.get("is_admin", False):
-                    target_user_ids = get_all_student_user_ids()
+                    target_user_ids = get_admin_and_student_user_ids(include_admin=True)
                 else:
                     target_user_ids = [int(st.session_state.user_id)]
 
@@ -6657,8 +6679,8 @@ def render_flashcards_page():
 
     with right:
         st.markdown('<div class="b4-card">', unsafe_allow_html=True)
-        st.markdown('<div class="b4-title">Revisão e gestão de decks</div>', unsafe_allow_html=True)
-        st.markdown('<div class="b4-sub">Sem lista individual de cards. Aqui você só filtra, revisa em sequência e gerencia decks inteiros.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="b4-title">Revisão e gestão</div>', unsafe_allow_html=True)
+        st.markdown('<div class="b4-sub">Filtre, revise em sequência e, se for administrador, exclua em massa por deck, matéria ou subtópico.</div>', unsafe_allow_html=True)
 
         current_deck = st.session_state.get("fc_filter_deck", "Todos")
         deck_options, _, _, _ = build_flashcard_filters(df)
@@ -6768,51 +6790,95 @@ def render_flashcards_page():
             safe_rerun()
 
         st.markdown('<div class="top-spacer-md"></div>', unsafe_allow_html=True)
-        st.markdown('<div class="b4-title">Excluir deck inteiro</div>', unsafe_allow_html=True)
-        st.markdown('<div class="b4-sub">Remove todos os cards do deck selecionado de uma vez.</div>', unsafe_allow_html=True)
-
-        all_decks_for_delete = sorted([
-            x for x in df["deck"].dropna().astype(str).unique().tolist()
-            if normalize_text(x)
-        ]) if not df.empty else []
-
-        deck_delete_options = ["Selecione"] + all_decks_for_delete
-        deck_to_delete = st.selectbox(
-            "Deck para excluir",
-            deck_delete_options,
-            key="fc_delete_deck_name"
-        )
-
-        confirm_delete = st.checkbox(
-            "Confirmo que desejo excluir o deck inteiro",
-            key="fc_confirm_delete_deck"
-        )
+        st.markdown('<div class="b4-title">Exclusão em massa</div>', unsafe_allow_html=True)
+        st.markdown('<div class="b4-sub">O administrador pode excluir flashcards por deck, matéria ou subtópico.</div>', unsafe_allow_html=True)
 
         if st.session_state.get("is_admin", False):
-            st.info("Como administrador, a exclusão do deck afetará todos os alunos que possuírem esse deck.")
+            delete_mode = st.radio(
+                "Tipo de exclusão",
+                ["Deck", "Matéria", "Subtópico"],
+                horizontal=True,
+                key="fc_delete_mode"
+            )
 
-        if st.button("Excluir deck inteiro", key="fc_delete_full_deck_btn", use_container_width=True):
-            if deck_to_delete == "Selecione":
-                st.error("Selecione um deck.")
-            elif not confirm_delete:
-                st.error("Marque a confirmação para excluir o deck inteiro.")
+            all_decks_for_delete = sorted([
+                x for x in df["deck"].dropna().astype(str).unique().tolist()
+                if normalize_text(x)
+            ]) if not df.empty else []
+
+            all_subjects_for_delete = sorted([
+                x for x in df["subject"].dropna().astype(str).unique().tolist()
+                if normalize_text(x)
+            ]) if not df.empty else []
+
+            all_topics_for_delete = sorted([
+                x for x in df["topic"].dropna().astype(str).unique().tolist()
+                if normalize_text(x)
+            ]) if not df.empty else []
+
+            deck_to_delete = "Selecione"
+            subject_to_delete = "Selecione"
+            topic_to_delete = "Selecione"
+
+            if delete_mode == "Deck":
+                deck_to_delete = st.selectbox(
+                    "Deck para excluir",
+                    ["Selecione"] + all_decks_for_delete,
+                    key="fc_delete_deck_name"
+                )
+            elif delete_mode == "Matéria":
+                subject_to_delete = st.selectbox(
+                    "Matéria para excluir",
+                    ["Selecione"] + all_subjects_for_delete,
+                    key="fc_delete_subject_name"
+                )
             else:
-                if st.session_state.get("is_admin", False):
-                    target_user_ids = get_all_student_user_ids()
-                    ok, msg = delete_flashcard_deck_for_users(target_user_ids, deck_to_delete)
-                else:
-                    ok, msg = delete_flashcard_deck_for_user(st.session_state.user_id, deck_to_delete)
+                topic_to_delete = st.selectbox(
+                    "Subtópico para excluir",
+                    ["Selecione"] + all_topics_for_delete,
+                    key="fc_delete_topic_name"
+                )
 
-                if ok:
-                    st.success(msg)
-                    st.session_state.flashcard_queue_ids = []
-                    st.session_state.flashcard_index = 0
-                    safe_rerun()
+            confirm_delete = st.checkbox(
+                "Confirmo que desejo excluir em massa",
+                key="fc_confirm_delete_scope"
+            )
+
+            st.info("Como administrador, a exclusão afetará todos os alunos e também os cards do próprio admin, se existirem.")
+
+            if st.button("Executar exclusão", key="fc_delete_scope_btn", use_container_width=True):
+                if not confirm_delete:
+                    st.error("Marque a confirmação para excluir.")
                 else:
-                    st.error(msg)
+                    if delete_mode == "Deck" and deck_to_delete == "Selecione":
+                        st.error("Selecione um deck.")
+                    elif delete_mode == "Matéria" and subject_to_delete == "Selecione":
+                        st.error("Selecione uma matéria.")
+                    elif delete_mode == "Subtópico" and topic_to_delete == "Selecione":
+                        st.error("Selecione um subtópico.")
+                    else:
+                        target_user_ids = get_admin_and_student_user_ids(include_admin=True)
+
+                        ok, msg = delete_flashcards_by_scope_for_users(
+                            target_user_ids=target_user_ids,
+                            delete_mode=delete_mode,
+                            deck_name="" if deck_to_delete == "Selecione" else deck_to_delete,
+                            subject_name="" if subject_to_delete == "Selecione" else subject_to_delete,
+                            topic_name="" if topic_to_delete == "Selecione" else topic_to_delete,
+                            is_admin=True
+                        )
+
+                        if ok:
+                            st.success(msg)
+                            st.session_state.flashcard_queue_ids = []
+                            st.session_state.flashcard_index = 0
+                            safe_rerun()
+                        else:
+                            st.error(msg)
+        else:
+            st.warning("A exclusão de deck, matéria ou subtópico é permitida apenas para o administrador.")
 
         st.markdown("</div>", unsafe_allow_html=True)
-
 # =========================================================
 # SIMULADOS
 # =========================================================
@@ -8691,6 +8757,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
