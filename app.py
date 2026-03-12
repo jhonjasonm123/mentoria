@@ -1959,15 +1959,15 @@ def inject_global_css():
 
         .stApp{
             background:
-                radial-gradient(circle at 12% 12%, rgba(90,178,255,0.12), transparent 26%),
-                radial-gradient(circle at 88% 8%, rgba(139,92,246,0.14), transparent 24%),
-                radial-gradient(circle at 50% 100%, rgba(244,193,93,0.05), transparent 28%),
-                linear-gradient(180deg, #040b16 0%, #07111f 42%, #06101c 100%);
+                radial-gradient(circle at 12% 12%, rgba(90,178,255,0.15), transparent 24%),
+                radial-gradient(circle at 88% 8%, rgba(139,92,246,0.16), transparent 24%),
+                radial-gradient(circle at 50% 100%, rgba(244,193,93,0.06), transparent 30%),
+                linear-gradient(180deg, #030914 0%, #06101c 40%, #040d18 100%);
             color: var(--text);
         }
 
         .block-container{
-            padding-top: 0.55rem !important;
+            padding-top: 0.45rem !important;
             padding-bottom: 1.6rem !important;
             max-width: 1380px;
         }
@@ -1986,84 +1986,274 @@ def inject_global_css():
             right: 1rem;
         }
 
-        .brand-shell{
+        /* =========================
+           HEADER ULTRA PREMIUM
+        ========================= */
+        .ultra-header-shell{
             position: relative;
             overflow: hidden;
-            border: 1px solid rgba(255,255,255,.07);
-            background: linear-gradient(135deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
-            box-shadow: var(--shadow);
             border-radius: 28px;
-            padding: 20px 24px;
-            margin-bottom: 14px;
-            backdrop-filter: blur(10px);
+            padding: 18px 22px;
+            margin-bottom: 12px;
+            background:
+                linear-gradient(135deg, rgba(255,255,255,.055), rgba(255,255,255,.018)),
+                linear-gradient(180deg, rgba(8,18,33,.96), rgba(10,20,38,.98));
+            border: 1px solid rgba(255,255,255,.09);
+            box-shadow:
+                0 26px 70px rgba(0,0,0,.35),
+                inset 0 1px 0 rgba(255,255,255,.05),
+                inset 0 0 0 1px rgba(255,255,255,.02),
+                0 0 40px rgba(59,130,246,.08),
+                0 0 70px rgba(124,58,237,.06);
+            backdrop-filter: blur(14px);
         }
 
-        .brand-shell::before{
+        .ultra-header-shell::before{
             content:"";
             position:absolute;
             inset:0;
             background:
-                radial-gradient(circle at 15% 20%, rgba(90,178,255,.15), transparent 24%),
-                radial-gradient(circle at 85% 10%, rgba(139,92,246,.12), transparent 22%);
+                radial-gradient(circle at 12% 18%, rgba(56,189,248,.18), transparent 22%),
+                radial-gradient(circle at 86% 12%, rgba(139,92,246,.16), transparent 24%),
+                linear-gradient(90deg, transparent, rgba(255,255,255,.025), transparent);
             pointer-events:none;
         }
 
-        .brand-row{
+        .ultra-header-shell::after{
+            content:"";
+            position:absolute;
+            inset:10px;
+            border-radius:20px;
+            border:1px solid rgba(255,255,255,.05);
+            pointer-events:none;
+        }
+
+        .ultra-header-row{
             position: relative;
             z-index: 2;
             display:flex;
             align-items:center;
             justify-content:space-between;
-            gap:20px;
-            flex-wrap:wrap;
-        }
-
-        .brand-left{
-            display:flex;
-            align-items:center;
             gap:18px;
             flex-wrap:wrap;
         }
 
-        .brand-logo, .hero-logo{
-            width:auto;
-            object-fit:contain;
-            border-radius:16px;
-            filter: drop-shadow(0 10px 22px rgba(0,0,0,.28));
-        }
-
-        .brand-title{
-            font-size: 1.95rem;
-            font-weight: 900;
-            line-height: 1.05;
-            letter-spacing: -0.03em;
-            color: #f7fbff;
-            margin: 0;
-        }
-
-        .brand-subtitle{
-            color: var(--muted);
-            font-size: 0.98rem;
-            margin-top: 6px;
-        }
-
-        .brand-badges{
+        .ultra-header-left{
             display:flex;
+            align-items:center;
+            gap:16px;
+            min-width: 0;
+            flex: 1 1 520px;
+        }
+
+        .ultra-logo-wrap{
+            flex:0 0 auto;
+            width:78px;
+            height:78px;
+            border-radius:22px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            background:
+              linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.028));
+            border:1px solid rgba(255,255,255,.10);
+            box-shadow:
+              0 16px 34px rgba(0,0,0,.24),
+              inset 0 1px 0 rgba(255,255,255,.06),
+              0 0 24px rgba(59,130,246,.07);
+         padding: 6px;
+        }
+
+       .ultra-logo-wrap img{
+            max-height:58px;
+            max-width:58px;
+            object-fit:contain;
+            filter: drop-shadow(0 10px 22px rgba(0,0,0,.24));
+         }
+
+        .ultra-title-stack{
+            min-width:0;
+        }
+
+        .ultra-brand-title{
+            margin:0;
+            color:#f8fbff;
+            font-size:2rem;
+            line-height:1.02;
+            font-weight:950;
+            letter-spacing:-0.045em;
+            text-shadow:
+                0 2px 10px rgba(0,0,0,.22),
+                0 0 22px rgba(255,255,255,.03);
+        }
+
+        .ultra-brand-title .grad{
+            background: linear-gradient(135deg, #ffffff 0%, #bfe2ff 28%, #d6c7ff 58%, #f4c15d 100%);
+            background-size: 220% 220%;
+            -webkit-background-clip:text;
+            -webkit-text-fill-color:transparent;
+            background-clip:text;
+            animation: headerGradientShift 7s ease infinite;
+        }
+
+        .ultra-brand-subtitle{
+            margin-top:6px;
+            color:#9eb0c9;
+            font-size:.95rem;
+            line-height:1.45;
+            max-width: 760px;
+        }
+
+        .ultra-header-right{
+            position: relative;
+            z-index: 2;
+            display:flex;
+            align-items:center;
             gap:10px;
             flex-wrap:wrap;
             justify-content:flex-end;
+            flex: 0 1 auto;
         }
 
-        .brand-badge{
+        .ultra-chip{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            padding:9px 14px;
+            border-radius:999px;
+            color:#edf4ff;
+            font-size:.78rem;
+            font-weight:850;
+            border:1px solid rgba(255,255,255,.10);
+            background:
+                linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.028));
+            box-shadow:
+                0 10px 22px rgba(0,0,0,.18),
+                inset 0 1px 0 rgba(255,255,255,.05);
+            white-space:nowrap;
+        }
+
+        .ultra-chip.gold{
+            color:#fff4d1;
+            border-color: rgba(244,193,93,.20);
+            box-shadow:
+                0 10px 22px rgba(0,0,0,.18),
+                inset 0 1px 0 rgba(255,255,255,.05),
+                0 0 20px rgba(244,193,93,.08);
+        }
+
+        /* =========================
+           NAV PREMIUM ULTRA
+        ========================= */
+        .ultra-nav-shell{
+            position: relative;
+            overflow:hidden;
+            border-radius:24px;
+            padding: 14px 18px 16px 18px;
+            margin-bottom: 10px;
+            background:
+                linear-gradient(135deg, rgba(255,255,255,.04), rgba(255,255,255,.014)),
+                linear-gradient(180deg, rgba(8,18,33,.94), rgba(8,17,31,.98));
             border:1px solid rgba(255,255,255,.08);
-            background: rgba(255,255,255,.05);
-            color:#d9e7fb;
+            box-shadow:
+                0 20px 52px rgba(0,0,0,.28),
+                inset 0 1px 0 rgba(255,255,255,.04),
+                0 0 28px rgba(59,130,246,.05);
+        }
+
+        .ultra-nav-shell::before{
+            content:"";
+            position:absolute;
+            inset:0;
+            background:
+                radial-gradient(circle at 14% 20%, rgba(56,189,248,.10), transparent 20%),
+                radial-gradient(circle at 85% 10%, rgba(139,92,246,.10), transparent 24%);
+            pointer-events:none;
+        }
+
+        .ultra-nav-title{
+            position:relative;
+            z-index:2;
+            color:#f8fbff;
+            font-size:1.08rem;
+            font-weight:900;
+            margin-bottom:2px;
+            letter-spacing:-0.02em;
+        }
+
+        .ultra-nav-subtitle{
+            position:relative;
+            z-index:2;
+            color:#93a8c4;
+            font-size:.88rem;
+            margin-bottom:12px;
+        }
+
+        .ultra-menu-active-label{
+            position:relative;
+            z-index:2;
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            margin-bottom:12px;
             padding:8px 12px;
             border-radius:999px;
-            font-size:.82rem;
-            font-weight:700;
+            border:1px solid rgba(255,255,255,.08);
+            background:rgba(255,255,255,.035);
+            color:#dce9fb;
+            font-size:.78rem;
+            font-weight:800;
         }
 
+        .ultra-menu-active-label b{
+            color:#ffffff;
+        }
+
+        .ultra-nav-shell div[data-testid="stHorizontalBlock"]{
+            gap: 12px !important;
+        }
+
+        .ultra-nav-shell div[data-testid="stButton"] > button{
+            width:100% !important;
+            min-height: 52px !important;
+            border-radius: 18px !important;
+            padding: .72rem .82rem !important;
+            font-size: .92rem !important;
+            font-weight: 850 !important;
+            letter-spacing: -.01em !important;
+            color: #edf4ff !important;
+            border: 1px solid rgba(255,255,255,.09) !important;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03)),
+                linear-gradient(135deg, rgba(39,116,255,.88), rgba(110,97,255,.88)) !important;
+            box-shadow:
+                0 14px 30px rgba(43,117,255,.18),
+                inset 0 1px 0 rgba(255,255,255,.06) !important;
+            transition: all .18s ease !important;
+        }
+
+        .ultra-nav-shell div[data-testid="stButton"] > button:hover{
+            transform: translateY(-1px);
+            filter: brightness(1.04);
+            box-shadow:
+                0 18px 34px rgba(43,117,255,.22),
+                0 0 26px rgba(99,102,241,.12),
+                inset 0 1px 0 rgba(255,255,255,.06) !important;
+        }
+
+        .ultra-nav-shell div[data-testid="stButton"] > button[data-active="true"]{
+            border: 1px solid rgba(255,255,255,.16) !important;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.035)),
+                linear-gradient(135deg, #1ca2ff 0%, #5f6dfb 55%, #8c5cf6 100%) !important;
+            box-shadow:
+                0 18px 36px rgba(37,99,235,.26),
+                0 0 28px rgba(99,102,241,.18),
+                0 0 42px rgba(139,92,246,.10),
+                inset 0 1px 0 rgba(255,255,255,.08) !important;
+        }
+
+        /* outros elementos já existentes */
         .glass-card{
             border: 1px solid rgba(255,255,255,.07);
             background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.03));
@@ -2378,6 +2568,12 @@ def inject_global_css():
             100%{background-position:0% 50%;}
         }
 
+        @keyframes headerGradientShift{
+            0%{background-position:0% 50%;}
+            50%{background-position:100% 50%;}
+            100%{background-position:0% 50%;}
+        }
+
         @keyframes floatGlow{
             0%{transform: translateY(0px) translateX(0px);}
             50%{transform: translateY(-10px) translateX(6px);}
@@ -2387,17 +2583,6 @@ def inject_global_css():
         @keyframes shineSweep{
             0%{transform: translateX(-100%);}
             100%{transform: translateX(160%);}
-        }
-
-        @keyframes typingTitle{
-            0%{width:0;}
-            35%{width:22ch;}
-            65%{width:22ch;}
-            100%{width:0;}
-        }
-
-        @keyframes blinkCaret{
-            50%{border-color:transparent;}
         }
 
         @keyframes nexusShift{
@@ -2420,12 +2605,12 @@ def inject_global_css():
                 grid-template-columns: 1fr;
             }
 
-            .brand-row{
+            .ultra-header-row{
                 flex-direction:column;
                 align-items:flex-start;
             }
 
-            .brand-badges{
+            .ultra-header-right{
                 justify-content:flex-start;
             }
         }
@@ -2941,34 +3126,44 @@ def resolve_selected_target_user_ids(selected_labels):
 # HEADER / LOGIN
 # =========================================================
 def render_app_header(username: Optional[str] = None, is_admin: bool = False):
-    logo_html = render_logo_html(height=66, css_class="brand-logo")
+    logo_html = render_logo_html(height=58, css_class="")
     today_str = datetime.now().strftime("%d/%m/%Y")
 
-    badges = f"""
-    <div class="brand-badges">
-        <div class="brand-badge">Versão {html.escape(APP_VERSION)}</div>
-        <div class="brand-badge">{today_str}</div>
-        <div class="brand-badge">{'Administrador' if is_admin else 'Aluno'}</div>
-        {f'<div class="brand-badge">Usuário: {html.escape(username)}</div>' if username else ''}
-    </div>
-    """
+    if logo_html:
+        logo_block = f'<div class="ultra-logo-wrap">{logo_html}</div>'
+    else:
+        logo_block = '<div class="ultra-logo-wrap"><span style="font-size:1.8rem;">🩺</span></div>'
+
+    chips = [
+        f'<div class="ultra-chip gold">Versão {html.escape(APP_VERSION)}</div>',
+        f'<div class="ultra-chip">{today_str}</div>',
+        f'<div class="ultra-chip">{"Administrador" if is_admin else "Aluno"}</div>',
+    ]
+
+    if username:
+        chips.append(f'<div class="ultra-chip">Usuário: {html.escape(username)}</div>')
+
+    chips_html = "".join(chips)
 
     header_html = f"""
-    <div class="brand-shell">
-        <div class="brand-row">
-            <div class="brand-left">
-                {logo_html}
-                <div>
-                    <div class="brand-title">{html.escape(APP_NAME)}</div>
-                    <div class="brand-subtitle">{html.escape(APP_SUBTITLE)}</div>
+    <div class="ultra-header-shell">
+        <div class="ultra-header-row">
+            <div class="ultra-header-left">
+                {logo_block}
+                <div class="ultra-title-stack">
+                    <div class="ultra-brand-title">
+                        <span class="grad">{html.escape(APP_NAME)}</span>
+                    </div>
+                    <div class="ultra-brand-subtitle">{html.escape(APP_SUBTITLE)}</div>
                 </div>
             </div>
-            <div>{badges}</div>
+            <div class="ultra-header-right">
+                {chips_html}
+            </div>
         </div>
     </div>
     """
     st.markdown(header_html, unsafe_allow_html=True)
-
 
 def render_auth_hero():
     logo_path = get_logo_path()
@@ -3129,21 +3324,84 @@ def render_top_menu():
 
     if current not in allowed:
         st.session_state.menu = allowed[0]
+        current = allowed[0]
 
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Navegação</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-subtitle">Escolha a área que deseja abrir no painel.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ultra-nav-shell">', unsafe_allow_html=True)
+    st.markdown('<div class="ultra-nav-title">Navegação</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ultra-nav-subtitle">Escolha a área que deseja abrir no painel.</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="ultra-menu-active-label">Área ativa: <b>{html.escape(current)}</b></div>',
+        unsafe_allow_html=True
+    )
 
     cols = st.columns(len(allowed))
     for i, item in enumerate(allowed):
         with cols[i]:
+            is_active = item == current
+
+            st.markdown(
+                f"""
+                <script>
+                const btns = window.parent.document.querySelectorAll('button[kind="secondary"], button[kind="primary"]');
+                </script>
+                """,
+                unsafe_allow_html=True
+            )
+
             if st.button(item, key=f"menu_{item}", use_container_width=True):
                 st.session_state.menu = item
                 if item != "Flashcards":
                     reset_flashcard_state()
                 safe_rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True)# =========================================================
+            st.markdown(
+                f"""
+                <script>
+                const btn = window.parent.document.querySelector('button[data-testid="baseButton-secondary"][key="menu_{item}"], button[key="menu_{item}"]');
+                </script>
+                """,
+                unsafe_allow_html=True
+            )
+
+            st.markdown(
+                f"""
+                <style>
+                div[data-testid="stButton"]:has(button[kind]) button#{""} {{
+                }}
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # marca visualmente o botão ativo depois de renderizar
+    active_index = allowed.index(current)
+    st.markdown(
+        f"""
+        <script>
+        (function() {{
+            const groups = window.parent.document.querySelectorAll('div[data-testid="stButton"] button');
+            let count = 0;
+            groups.forEach((btn) => {{
+                const txt = (btn.innerText || "").trim();
+                const valid = {allowed!r};
+                if (valid.includes(txt)) {{
+                    if (txt === {current!r}) {{
+                        btn.setAttribute("data-active", "true");
+                    }} else {{
+                        btn.setAttribute("data-active", "false");
+                    }}
+                    count += 1;
+                }}
+            }});
+        }})();
+        </script>
+        """,
+        unsafe_allow_html=True
+    )
+
+# =========================================================
 # VISÃO GERAL
 # =========================================================
 def get_performance_badge_html(acc: float):
@@ -3212,6 +3470,14 @@ def build_dashboard_metrics(user_id: int):
     mocks_df = data["mocks_df"].copy()
     goal = data["goal"]
     review_df = data["review_df"].copy()
+
+    flashcards_df = fetch_flashcards_df(user_id)
+    flashcards_reviewed_today = 0
+    if not flashcards_df.empty and "last_reviewed" in flashcards_df.columns:
+        last_reviewed_series = flashcards_df["last_reviewed"].fillna("").astype(str)
+        flashcards_reviewed_today = int(
+            last_reviewed_series.str.startswith(data["today"]).sum()
+        )
 
     if sessions_df.empty:
         sessions_df = pd.DataFrame(columns=[
@@ -3376,8 +3642,8 @@ def build_dashboard_metrics(user_id: int):
         },
         {
             "label": "Meta de flashcards",
-            "meta": f"{daily_flashcard_goal}/dia",
-            "status": 100,
+            "meta": f"{flashcards_reviewed_today}/{daily_flashcard_goal}",
+            "status": min((flashcards_reviewed_today / daily_flashcard_goal) * 100, 100) if daily_flashcard_goal > 0 else 0,
         },
     ])
 
@@ -3423,7 +3689,6 @@ def build_dashboard_metrics(user_id: int):
         "review_df": review_df,
         "upcoming_reviews_df": upcoming_reviews_df,
     }
-
 
 def render_kpi_cards(metrics: dict):
     cards = [
@@ -5613,7 +5878,6 @@ def get_admin_and_student_user_ids(include_admin=False):
         return []
 
     ids = []
-
     student_ids = users_df[users_df["is_admin"] == 0]["id"].astype(int).tolist()
     ids.extend(student_ids)
 
@@ -6115,219 +6379,292 @@ def inject_flashcard_fullscreen_css():
         """
         <style>
         .block-container{
-            padding-top: 0.4rem !important;
-            padding-bottom: 0.8rem !important;
-            max-width: 1380px !important;
+            padding-top: 0.12rem !important;
+            padding-bottom: 0.20rem !important;
+            max-width: 1400px !important;
         }
 
-        .fc-fullscreen-wrap{
-            min-height: auto !important;
-            position: relative;
-            overflow: visible !important;
-            border: 1.5px solid rgba(255,255,255,.16) !important;
-            outline: 1px solid rgba(90,178,255,.18) !important;
-            outline-offset: 0px !important;
-            border-radius: 26px !important;
+        .fc-stage{
+            width:100%;
+            display:block;
+            min-height:auto !important;
+            margin:0 !important;
+            padding:0 !important;
+        }
+
+        .fc-screen{
+            width:100%;
+            min-height:auto !important;
+            display:block;
+            position:relative;
+            overflow:hidden;
             background:
-                radial-gradient(circle at 12% 14%, rgba(56,189,248,.10), transparent 22%),
-                radial-gradient(circle at 88% 10%, rgba(99,102,241,.12), transparent 24%),
-                linear-gradient(180deg, #04101d 0%, #061425 45%, #07111f 100%) !important;
-            padding: 26px 26px 28px 26px !important;
+                radial-gradient(circle at 12% 18%, rgba(56,189,248,.10), transparent 22%),
+                radial-gradient(circle at 88% 12%, rgba(139,92,246,.14), transparent 24%),
+                linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015)),
+                linear-gradient(180deg, #202226 0%, #24262b 100%);
+            border: 1.5px solid rgba(255,255,255,.14);
+            border-radius: 26px;
+            padding: 0 !important;
+            margin: 0 !important;
             box-shadow:
-                0 24px 70px rgba(0,0,0,.40),
-                inset 0 1px 0 rgba(255,255,255,.04),
-                inset 0 0 0 1px rgba(255,255,255,.03) !important;
-            margin-top: 10px !important;
+                0 30px 80px rgba(0,0,0,.38),
+                0 0 0 1px rgba(255,255,255,.03) inset,
+                0 0 35px rgba(59,130,246,.10),
+                0 0 60px rgba(124,58,237,.08);
         }
 
-        .fc-fullscreen-wrap::before{
+        .fc-screen::before{
             content:"";
             position:absolute;
             inset:0;
             border-radius:26px;
-            border: 1px solid rgba(120,170,255,.16);
+            padding:1px;
+            background: linear-gradient(
+                135deg,
+                rgba(255,255,255,.22) 0%,
+                rgba(96,165,250,.22) 22%,
+                rgba(129,140,248,.18) 48%,
+                rgba(168,85,247,.20) 72%,
+                rgba(255,255,255,.10) 100%
+            );
+            -webkit-mask:
+                linear-gradient(#000 0 0) content-box,
+                linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
             pointer-events:none;
-            box-sizing:border-box;
         }
 
-        .fc-fullscreen-wrap::after{
+        .fc-screen::after{
             content:"";
             position:absolute;
             inset:10px;
-            border-radius:20px;
-            border: 1px solid rgba(255,255,255,.04);
+            border-radius:18px;
+            border:1px solid rgba(255,255,255,.05);
             pointer-events:none;
-            box-sizing:border-box;
+            box-shadow:
+                inset 0 1px 0 rgba(255,255,255,.03),
+                inset 0 0 18px rgba(255,255,255,.015);
         }
 
-        .fc-clean-shell{
-            width: 100%;
-            max-width: 1220px;
-            margin: 0 auto !important;
-            padding: 6px 6px 10px 6px !important;
-            position: relative;
-            z-index: 2;
-        }
-
-        .fc-clean-label{
-            color:#ffffff;
-            font-size: .92rem;
-            font-weight: 900;
-            text-transform: uppercase;
-            text-align: left;
-            margin: 0 0 22px 0 !important;
-            letter-spacing: .05em;
-        }
-
-        .fc-clean-question{
-            color:#f7fbff;
-            font-size: 1.88rem;
-            font-weight: 900;
-            line-height: 1.42;
-            margin: 0 auto 16px auto !important;
+        .fc-question-wrap{
+            width:100%;
             text-align:center;
-            max-width: 1000px;
-            text-shadow: 0 3px 22px rgba(0,0,0,.20);
+            padding: 0px 28px 0 28px !important;
+            margin: 0 !important;
+            position:relative;
+            z-index:2;
         }
 
-        .fc-clean-meta{
-            color:#8fa6c4;
-            font-size:.88rem;
-            margin: 0 auto 0 auto !important;
+        .fc-question{
+            color:#ffffff;
+            font-size: 1.80rem;
+            font-weight: 800;
             line-height: 1.45;
             text-align:center;
-            max-width: 900px;
+            max-width: 1100px;
+            margin: 0 auto !important;
+            word-break: break-word;
+            text-shadow:
+                0 2px 10px rgba(0,0,0,.28),
+                0 0 18px rgba(255,255,255,.04);
         }
 
-        .fc-gap-after-question{
-            height: 120px !important;
-            width: 100%;
+        .fc-answer-divider{
+            width:100%;
+            border-top: 1px solid rgba(255,255,255,.16);
+            margin-top: 12px;
+            box-shadow: 0 1px 0 rgba(255,255,255,.03) inset;
+            position:relative;
+            z-index:2;
         }
 
-        .fc-answer-slot{
-            min-height: 0 !important;
+        .fc-answer-area{
+            width:100%;
+            text-align:center;
+            padding: 14px 28px 12px 28px !important;
+            margin: 0 !important;
             display:flex;
-            flex-direction:column;
-            justify-content:flex-start;
-            gap:18px;
-            margin: 0 auto 24px auto !important;
-            max-width: 1020px;
+            justify-content:center;
+            align-items:center;
+            position:relative;
+            z-index:2;
         }
 
-        .fc-reveal-block{
-            margin: 0 !important;
-        }
-
-        .fc-reveal-block-note{
-            margin: 0 !important;
-        }
-
-        .fc-buttons-wrap{
-            margin-top: 0 !important;
-            margin-bottom: 18px !important;
-        }
-
-        .fc-clean-box{
-            border: 1px solid rgba(255,255,255,.10);
-            border-radius: 22px;
-            background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.03));
-            padding: 22px 24px;
-            color:#eef4ff;
-            line-height:1.7;
-            font-size:1.03rem;
+        .fc-answer-box{
+            width:100%;
+            max-width: 1120px;
             text-align:center;
-            width:100%;
-            box-shadow: 0 14px 34px rgba(0,0,0,.22);
+            margin:0 auto !important;
+            padding: 16px 18px;
+            border-radius: 20px;
+            background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.02));
+            border: 1px solid rgba(255,255,255,.07);
+            box-shadow:
+                0 14px 32px rgba(0,0,0,.18),
+                inset 0 1px 0 rgba(255,255,255,.03);
         }
 
-        .fc-box-text{
-            width:100%;
+        .fc-answer-main{
+            color:#ffffff;
+            font-size: 1.55rem;
+            font-weight: 800;
+            line-height: 1.5;
             text-align:center;
-            font-weight:700;
-            color:#f3f8ff;
-        }
-
-        .fc-small-buttons div[data-testid="stButton"] > button{
-            width:70% !important;
             margin: 0 auto !important;
-            display:block !important;
-            min-height: 34px !important;
-            padding: 0.16rem 0.34rem !important;
-            border-radius: 13px !important;
-            font-size: 0.70rem !important;
-            font-weight: 800 !important;
-            border: 1px solid rgba(255,255,255,.08) !important;
-            color: white !important;
-            background: linear-gradient(135deg, #2296f3 0%, #6a63ff 100%) !important;
-            box-shadow: 0 12px 26px rgba(43,117,255,.24) !important;
+            word-break: break-word;
+            text-shadow:
+                0 2px 10px rgba(0,0,0,.26),
+                0 0 16px rgba(255,255,255,.03);
         }
 
-        .fc-rate-buttons{
-            margin: 0 0 14px 0 !important;
+        .fc-answer-note{
+            color:#dbe4f2;
+            font-size: 1.18rem;
+            font-weight: 500;
+            line-height: 1.58;
+            text-align:center;
+            margin: 18px auto 0 auto !important;
+            max-width: 1050px;
+            word-break: break-word;
         }
 
-        .fc-rate-buttons div[data-testid="stButton"] > button{
-            width:70% !important;
-            margin: 0 auto !important;
-            display:block !important;
-            min-height: 34px !important;
-            padding: 0.14rem 0.30rem !important;
-            border-radius: 13px !important;
-            font-size: 0.68rem !important;
-            font-weight: 900 !important;
-            line-height: 1.08 !important;
-            border: 1px solid rgba(255,255,255,.08) !important;
-            color: white !important;
-            background: linear-gradient(135deg, #2296f3 0%, #6a63ff 100%) !important;
-            box-shadow: 0 12px 26px rgba(43,117,255,.24) !important;
-        }
-
-        .fc-bottom-actions{
-            margin-top: 16px !important;
-            padding-top: 0 !important;
-            max-width: 300px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .fc-bottom-actions div[data-testid="stButton"] > button{
-            width:70% !important;
-            margin: 0 auto !important;
-            display:block !important;
-            min-height: 35px !important;
-            padding: 0.16rem 0.34rem !important;
-            border-radius: 13px !important;
-            font-size: 0.70rem !important;
-            font-weight: 900 !important;
-        }
-
-        .fc-bottom-space{
-            height: 2px;
-        }
-
-        div[data-testid="stVerticalBlock"]:has(> div > .fc-fullscreen-wrap){
+        .fc-no-answer-gap{
+            height: 10px !important;
             width:100%;
-            gap: 0 !important;
+            margin:0 !important;
+            padding:0 !important;
+        }
+
+        .fc-bottom{
+            width:100%;
+            margin-top: 10px !important;
+            padding: 12px 20px 18px 20px !important;
+            text-align:center;
+            border-top: 1px solid rgba(255,255,255,.06);
+            position:relative;
+            z-index:2;
+            background: linear-gradient(180deg, rgba(255,255,255,.015), rgba(255,255,255,.01));
+        }
+
+        .fc-show-answer-wrap{
+            max-width: 320px;
+            margin: 0 auto !important;
+        }
+
+        .fc-show-answer-wrap div[data-testid="stButton"] > button{
+            border-radius: 14px !important;
+            min-height: 44px !important;
+            font-size: 1rem !important;
+            font-weight: 900 !important;
+            background: linear-gradient(90deg, #1f9bff 0%, #6a63ff 55%, #8b5cf6 100%) !important;
+            color: #fff !important;
+            border: 1px solid rgba(255,255,255,.10) !important;
+            box-shadow:
+                0 10px 24px rgba(37,99,235,.22),
+                0 0 24px rgba(99,102,241,.12) !important;
+        }
+
+        .fc-show-answer-wrap div[data-testid="stButton"] > button:hover{
+            filter: brightness(1.05);
+            transform: translateY(-1px);
+            transition: .18s ease;
+        }
+
+        .fc-rating-top{
+            margin-bottom: 4px !important;
+        }
+
+        .fc-rating-label{
+            text-align:center;
+            color:#ffffff;
+            font-size:1rem;
+            font-weight:800;
+            white-space:nowrap;
+            margin-bottom:6px;
+            text-shadow: 0 1px 8px rgba(0,0,0,.18);
+        }
+
+        .fc-rating-btns div[data-testid="stButton"] > button{
+            border-radius: 14px !important;
+            min-height: 44px !important;
+            font-size: .96rem !important;
+            font-weight: 900 !important;
+            background: linear-gradient(180deg, #4f535a 0%, #3d4148 100%) !important;
+            color: #fff !important;
+            border: 1px solid rgba(255,255,255,.10) !important;
+            box-shadow:
+                0 10px 24px rgba(0,0,0,.16),
+                inset 0 1px 0 rgba(255,255,255,.04) !important;
+        }
+
+        .fc-rating-btns div[data-testid="stButton"] > button:hover{
+            filter: brightness(1.06);
+            transform: translateY(-1px);
+            transition: .18s ease;
+        }
+
+        .fc-back-wrap{
+            max-width: 240px;
+            margin: 12px auto 0 auto !important;
+        }
+
+        .fc-back-wrap div[data-testid="stButton"] > button{
+            border-radius: 14px !important;
+            min-height: 42px !important;
+            font-size: .94rem !important;
+            font-weight: 900 !important;
+            background: linear-gradient(90deg, #2497ff 0%, #5f6dfb 55%, #7c5cff 100%) !important;
+            color: #fff !important;
+            border: 1px solid rgba(255,255,255,.10) !important;
+            box-shadow:
+                0 10px 24px rgba(37,99,235,.18),
+                0 0 22px rgba(99,102,241,.10) !important;
+        }
+
+        .fc-back-wrap div[data-testid="stButton"] > button:hover{
+            filter: brightness(1.05);
+            transform: translateY(-1px);
+            transition: .18s ease;
         }
 
         @media (max-width: 900px){
-            .fc-fullscreen-wrap{
-                padding: 18px 14px 20px 14px !important;
+            .fc-screen{
+                border-radius: 18px;
             }
 
-            .fc-clean-question{
+            .fc-screen::before{
+                border-radius: 18px;
+            }
+
+            .fc-screen::after{
+                inset:8px;
+                border-radius: 12px;
+            }
+
+            .fc-question{
                 font-size: 1.45rem;
-                max-width: 96%;
             }
 
-            .fc-gap-after-question{
-                height: 80px !important;
+            .fc-answer-main{
+                font-size: 1.25rem;
             }
 
-            .fc-small-buttons div[data-testid="stButton"] > button,
-            .fc-rate-buttons div[data-testid="stButton"] > button,
-            .fc-bottom-actions div[data-testid="stButton"] > button{
-                width:100% !important;
+            .fc-answer-note{
+                font-size: 1rem;
+            }
+
+            .fc-question-wrap{
+                padding: 0px 14px 0 14px !important;
+            }
+
+            .fc-answer-area{
+                padding: 10px 14px 10px 14px !important;
+            }
+
+            .fc-bottom{
+                padding: 10px 10px 14px 10px !important;
             }
         }
         </style>
@@ -6380,7 +6717,6 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
         note = normalize_text(row.get("note", ""))
 
     interval_days = to_int(row.get("interval_days", 0), 0)
-    review_count = to_int(row.get("review_count", 0), 0)
     ease_factor = to_float(row.get("ease_factor", 2.5), 2.5)
 
     again_days = preview_flashcard_interval(interval_days, ease_factor, "again")
@@ -6388,116 +6724,160 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
     good_days = preview_flashcard_interval(interval_days, ease_factor, "good")
     easy_days = preview_flashcard_interval(interval_days, ease_factor, "easy")
 
-    st.markdown('<div class="fc-fullscreen-wrap">', unsafe_allow_html=True)
-    st.markdown('<div class="fc-clean-shell">', unsafe_allow_html=True)
-    st.markdown('<div class="fc-clean-label">FRENTE</div>', unsafe_allow_html=True)
+    show_answer = st.session_state.get("flashcard_show_answer", False)
+    badge_label = "Cloze" if card_type == "cloze" else "Basic"
 
-    prefix = "🪼 🪸 🐚" if card_type != "cloze" else "🕳️ 🧠 ✍️"
+    st.markdown('<div class="fc-stage">', unsafe_allow_html=True)
+    st.markdown('<div class="fc-screen">', unsafe_allow_html=True)
+
+    header_html = (
+        '<div style="'
+        'display:flex;'
+        'justify-content:space-between;'
+        'align-items:center;'
+        'gap:12px;'
+        'padding:16px 18px 10px 18px;'
+        'position:relative;'
+        'z-index:2;'
+        '">'
+            '<div style="'
+            'display:inline-flex;'
+            'align-items:center;'
+            'padding:8px 12px;'
+            'border-radius:999px;'
+            'border:1px solid rgba(255,255,255,.10);'
+            'background:rgba(255,255,255,.04);'
+            'color:#eef4ff;'
+            'font-size:.82rem;'
+            'font-weight:900;'
+            'letter-spacing:.02em;'
+            '">'
+                + html.escape(badge_label) +
+            '</div>'
+            '<div style="'
+            'display:inline-flex;'
+            'align-items:center;'
+            'padding:8px 12px;'
+            'border-radius:999px;'
+            'border:1px solid rgba(255,255,255,.10);'
+            'background:rgba(255,255,255,.04);'
+            'color:#dbe6f8;'
+            'font-size:.82rem;'
+            'font-weight:800;'
+            '">'
+                + f'Card {current_index + 1} de {total}' +
+            '</div>'
+        '</div>'
+    )
+    st.markdown(header_html, unsafe_allow_html=True)
+
+    st.markdown('<div class="fc-question-wrap">', unsafe_allow_html=True)
     st.markdown(
-        f'<div class="fc-clean-question">{prefix} {html.escape(question)}</div>',
+        f'<div class="fc-question">{html.escape(question)}</div>',
         unsafe_allow_html=True
     )
-
-    st.markdown(
-        f'<div class="fc-clean-meta">Tipo: {html.escape(card_type.title())} • Histórico: {review_count} revisão(ões) • Intervalo atual: {interval_days} dia(s) • Card {current_index + 1} de {total}</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown('<div class="fc-gap-after-question"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="fc-answer-slot">', unsafe_allow_html=True)
-
-    if st.session_state.get("flashcard_show_answer", False):
-        if card_type == "cloze" and full_text:
-            reveal_text = f"✅ {html.escape(answer) if answer else 'Sem resposta cadastrada.'}<br><br>🧩 Frase completa: {html.escape(full_text)}"
-        else:
-            reveal_text = f"✅ {html.escape(answer) if answer else 'Sem resposta cadastrada.'}"
-
-        st.markdown(
-            (
-                '<div class="fc-reveal-block"><div class="fc-clean-box">'
-                f'<div class="fc-box-text">{reveal_text}</div>'
-                '</div></div>'
-            ),
-            unsafe_allow_html=True
-        )
-
-    if st.session_state.get("flashcard_show_note", False):
-        st.markdown(
-            (
-                '<div class="fc-reveal-block-note"><div class="fc-clean-box">'
-                f'<div class="fc-box-text">🧠 {html.escape(note) if note else "Sem nota cadastrada."}</div>'
-                '</div></div>'
-            ),
-            unsafe_allow_html=True
-        )
-
     st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('<div class="fc-buttons-wrap">', unsafe_allow_html=True)
-    st.markdown('<div class="fc-small-buttons">', unsafe_allow_html=True)
 
-    c1, c2 = st.columns([1, 1], gap="large")
-    with c1:
-        if st.button("Mostrar resposta", key="fc_show_answer", use_container_width=True):
+    if show_answer:
+        st.markdown('<div class="fc-answer-divider"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="fc-answer-area">', unsafe_allow_html=True)
+
+        extra_parts = []
+        if card_type == "cloze" and full_text:
+            extra_parts.append(f"Frase completa: {html.escape(full_text)}")
+        if note:
+            extra_parts.append(f"Nota: {html.escape(note)}")
+
+        extra_html = ""
+        if extra_parts:
+            extra_html = f'<div class="fc-answer-note">{"<br><br>".join(extra_parts)}</div>'
+
+        st.markdown(
+            f'<div class="fc-answer-box"><div class="fc-answer-main">{html.escape(answer) if answer else "Sem resposta cadastrada."}</div>{extra_html}</div>',
+            unsafe_allow_html=True
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="fc-no-answer-gap"></div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="fc-bottom">', unsafe_allow_html=True)
+
+    if not show_answer:
+        st.markdown('<div class="fc-show-answer-wrap">', unsafe_allow_html=True)
+        if st.button("Mostrar resposta", key=f"fc_show_answer_{card_id}", use_container_width=True):
             st.session_state.flashcard_show_answer = True
             safe_rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="fc-rating-top">', unsafe_allow_html=True)
 
-    with c2:
-        if st.button("Mostrar nota", key="fc_show_note", use_container_width=True):
-            st.session_state.flashcard_show_note = True
-            safe_rerun()
+        l1, l2, l3, l4 = st.columns(4, gap="large")
+        with l1:
+            st.markdown(f'<div class="fc-rating-label">{html.escape(format_interval_label(again_days))}</div>', unsafe_allow_html=True)
+        with l2:
+            st.markdown(f'<div class="fc-rating-label">{html.escape(format_interval_label(hard_days))}</div>', unsafe_allow_html=True)
+        with l3:
+            st.markdown(f'<div class="fc-rating-label">{html.escape(format_interval_label(good_days))}</div>', unsafe_allow_html=True)
+        with l4:
+            st.markdown(f'<div class="fc-rating-label">{html.escape(format_interval_label(easy_days))}</div>', unsafe_allow_html=True)
 
-    st.markdown('</div></div>', unsafe_allow_html=True)
-    st.markdown('<div class="fc-rate-buttons">', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="fc-rating-btns">', unsafe_allow_html=True)
 
-    r1, r2, r3, r4 = st.columns(4, gap="large")
-    with r1:
-        if st.button(f"Again • {format_interval_label(again_days)}", key=f"fc_rate_again_{card_id}", use_container_width=True):
-            ok, _ = review_flashcard(card_id, "again")
-            if ok:
-                st.session_state.flashcard_show_answer = False
-                st.session_state.flashcard_show_note = False
-                st.session_state.flashcard_index = min(current_index + 1, total - 1)
-                safe_rerun()
+        r1, r2, r3, r4 = st.columns(4, gap="large")
 
-    with r2:
-        if st.button(f"Hard • {format_interval_label(hard_days)}", key=f"fc_rate_hard_{card_id}", use_container_width=True):
-            ok, _ = review_flashcard(card_id, "hard")
-            if ok:
-                st.session_state.flashcard_show_answer = False
-                st.session_state.flashcard_show_note = False
-                st.session_state.flashcard_index = min(current_index + 1, total - 1)
-                safe_rerun()
+        with r1:
+            if st.button("De novo", key=f"fc_rate_again_{card_id}", use_container_width=True):
+                ok, _ = review_flashcard(card_id, "again")
+                if ok:
+                    st.session_state.flashcard_show_answer = False
+                    st.session_state.flashcard_show_note = False
+                    if current_index < total - 1:
+                        st.session_state.flashcard_index = current_index + 1
+                    safe_rerun()
 
-    with r3:
-        if st.button(f"Good • {format_interval_label(good_days)}", key=f"fc_rate_good_{card_id}", use_container_width=True):
-            ok, _ = review_flashcard(card_id, "good")
-            if ok:
-                st.session_state.flashcard_show_answer = False
-                st.session_state.flashcard_show_note = False
-                st.session_state.flashcard_index = min(current_index + 1, total - 1)
-                safe_rerun()
+        with r2:
+            if st.button("Difícil", key=f"fc_rate_hard_{card_id}", use_container_width=True):
+                ok, _ = review_flashcard(card_id, "hard")
+                if ok:
+                    st.session_state.flashcard_show_answer = False
+                    st.session_state.flashcard_show_note = False
+                    if current_index < total - 1:
+                        st.session_state.flashcard_index = current_index + 1
+                    safe_rerun()
 
-    with r4:
-        if st.button(f"Easy • {format_interval_label(easy_days)}", key=f"fc_rate_easy_{card_id}", use_container_width=True):
-            ok, _ = review_flashcard(card_id, "easy")
-            if ok:
-                st.session_state.flashcard_show_answer = False
-                st.session_state.flashcard_show_note = False
-                st.session_state.flashcard_index = min(current_index + 1, total - 1)
-                safe_rerun()
+        with r3:
+            if st.button("Bom", key=f"fc_rate_good_{card_id}", use_container_width=True):
+                ok, _ = review_flashcard(card_id, "good")
+                if ok:
+                    st.session_state.flashcard_show_answer = False
+                    st.session_state.flashcard_show_note = False
+                    if current_index < total - 1:
+                        st.session_state.flashcard_index = current_index + 1
+                    safe_rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('<div class="fc-bottom-actions">', unsafe_allow_html=True)
+        with r4:
+            if st.button("Fácil", key=f"fc_rate_easy_{card_id}", use_container_width=True):
+                ok, _ = review_flashcard(card_id, "easy")
+                if ok:
+                    st.session_state.flashcard_show_answer = False
+                    st.session_state.flashcard_show_note = False
+                    if current_index < total - 1:
+                        st.session_state.flashcard_index = current_index + 1
+                    safe_rerun()
 
-    if st.button("Voltar", key="fc_back", use_container_width=True):
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="fc-back-wrap">', unsafe_allow_html=True)
+    if st.button("Voltar", key=f"fc_back_{card_id}", use_container_width=True):
         st.session_state.flashcard_fullscreen = False
         st.session_state.flashcard_show_answer = False
         st.session_state.flashcard_show_note = False
         st.session_state.flashcard_queue_ids = []
         safe_rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('<div class="fc-bottom-space"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -6879,6 +7259,7 @@ def render_flashcards_page():
             st.warning("A exclusão de deck, matéria ou subtópico é permitida apenas para o administrador.")
 
         st.markdown("</div>", unsafe_allow_html=True)
+
 # =========================================================
 # SIMULADOS
 # =========================================================
@@ -8755,9 +9136,4 @@ def main():
 
 
 if __name__ == "__main__":
-
     main()
-
-
-
-
