@@ -2653,13 +2653,6 @@ def fetch_dataframe(query: str, params=()):
 
 
 def init_db():
-
-def zerar_logs_flashcards():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("DELETE FROM flashcard_review_log")
-    conn.commit()
-    conn.close()
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
 
@@ -9154,7 +9147,6 @@ def render_simulados_page():
     with tab2:
         render_mock_multiuser_ranking()
 def main():
-    zerar_logs_flashcards()
     ensure_session_defaults()
     init_db()
     ensure_schema_upgrades()
