@@ -6631,27 +6631,27 @@ def inject_flashcard_fullscreen_css():
             margin-bottom: 4px !important;
         }
 
-        .fc-rating-label{
-            text-align:center;
-            color:#ffffff;
-            font-size:1rem;
-            font-weight:800;
-            white-space:nowrap;
-            margin-bottom:6px;
-            text-shadow: 0 1px 8px rgba(0,0,0,.18);
-        }
-
-        .fc-rating-btns div[data-testid="stButton"] > button{
-            border-radius: 14px !important;
-            min-height: 44px !important;
-            font-size: .96rem !important;
+                .fc-bottom div[data-testid="stButton"] > button{
+            border-radius: 16px !important;
+            min-height: 88px !important;
+            font-size: 1rem !important;
             font-weight: 900 !important;
-            background: linear-gradient(180deg, #4f535a 0%, #3d4148 100%) !important;
+            line-height: 1.35 !important;
+            white-space: pre-line !important;
+            text-align: center !important;
+            padding: 12px 10px !important;
+            background: linear-gradient(90deg, #1f9bff 0%, #6a63ff 55%, #8b5cf6 100%) !important;
             color: #fff !important;
             border: 1px solid rgba(255,255,255,.10) !important;
             box-shadow:
-                0 10px 24px rgba(0,0,0,.16),
-                inset 0 1px 0 rgba(255,255,255,.04) !important;
+                0 10px 24px rgba(37,99,235,.22),
+                0 0 24px rgba(99,102,241,.12) !important;
+        }
+
+        .fc-bottom div[data-testid="stButton"] > button:hover{
+            filter: brightness(1.05);
+            transform: translateY(-1px);
+            transition: .18s ease;
         }
 
         .fc-rating-btns div[data-testid="stButton"] > button:hover{
@@ -6718,8 +6718,14 @@ def inject_flashcard_fullscreen_css():
                 padding: 10px 14px 10px 14px !important;
             }
 
-            .fc-bottom{
+                        .fc-bottom{
                 padding: 10px 10px 14px 10px !important;
+            }
+
+            .fc-bottom div[data-testid="stButton"] > button{
+                min-height: 78px !important;
+                font-size: .92rem !important;
+                padding: 10px 8px !important;
             }
         }
         </style>
@@ -6869,25 +6875,10 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
             safe_rerun()
         st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.markdown('<div class="fc-rating-top">', unsafe_allow_html=True)
-
-        l1, l2, l3, l4 = st.columns(4, gap="large")
-        with l1:
-            st.markdown(f'<div class="fc-rating-label">{html.escape(format_interval_label(again_days))}</div>', unsafe_allow_html=True)
-        with l2:
-            st.markdown(f'<div class="fc-rating-label">{html.escape(format_interval_label(hard_days))}</div>', unsafe_allow_html=True)
-        with l3:
-            st.markdown(f'<div class="fc-rating-label">{html.escape(format_interval_label(good_days))}</div>', unsafe_allow_html=True)
-        with l4:
-            st.markdown(f'<div class="fc-rating-label">{html.escape(format_interval_label(easy_days))}</div>', unsafe_allow_html=True)
-
-        st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('<div class="fc-rating-btns">', unsafe_allow_html=True)
-
         r1, r2, r3, r4 = st.columns(4, gap="large")
 
         with r1:
-            if st.button("De novo", key=f"fc_rate_again_{card_id}", use_container_width=True):
+            if st.button(f"{format_interval_label(again_days)}\nDe novo", key=f"fc_rate_again_{card_id}", use_container_width=True):
                 finish_flashcard_and_log(st.session_state.user_id, card_id)
                 ok, _ = review_flashcard(card_id, "again")
                 if ok:
@@ -6898,7 +6889,7 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
                     safe_rerun()
 
         with r2:
-            if st.button("Difícil", key=f"fc_rate_hard_{card_id}", use_container_width=True):
+            if st.button(f"{format_interval_label(hard_days)}\nDifícil", key=f"fc_rate_hard_{card_id}", use_container_width=True):
                 finish_flashcard_and_log(st.session_state.user_id, card_id)
                 ok, _ = review_flashcard(card_id, "hard")
                 if ok:
@@ -6909,7 +6900,7 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
                     safe_rerun()
 
         with r3:
-            if st.button("Bom", key=f"fc_rate_good_{card_id}", use_container_width=True):
+            if st.button(f"{format_interval_label(good_days)}\nBom", key=f"fc_rate_good_{card_id}", use_container_width=True):
                 finish_flashcard_and_log(st.session_state.user_id, card_id)
                 ok, _ = review_flashcard(card_id, "good")
                 if ok:
@@ -6920,7 +6911,7 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
                     safe_rerun()
 
         with r4:
-            if st.button("Fácil", key=f"fc_rate_easy_{card_id}", use_container_width=True):
+            if st.button(f"{format_interval_label(easy_days)}\nFácil", key=f"fc_rate_easy_{card_id}", use_container_width=True):
                 finish_flashcard_and_log(st.session_state.user_id, card_id)
                 ok, _ = review_flashcard(card_id, "easy")
                 if ok:
