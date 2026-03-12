@@ -3409,10 +3409,10 @@ def get_performance_badge_html(acc: float):
 
     if acc < 70:
         return f'<span style="color:#ff6b6b;font-weight:900;">🔴 {acc:.1f}%</span>'
-    elif acc <= 80:
+    elif 70 <= acc <= 79:
         return f'<span style="color:#f4c15d;font-weight:900;">🟡 {acc:.1f}%</span>'
-    return f'<span style="color:#5be38b;font-weight:900;">🏆 {acc:.1f}%</span>'
-
+    else:
+        return f'<span style="color:#5be38b;font-weight:900;">🏆 {acc:.1f}%</span>'
 
 def get_review_urgency_chip(next_review_date: str):
     next_review_date = normalize_text(next_review_date)
@@ -3766,7 +3766,7 @@ def render_ranking_10_panel(metrics: dict):
 
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">10 melhores e 10 piores subtópicos</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-subtitle">Semáforo: vermelho &lt; 70 • amarelo 70 a 80 • verde com troféu &gt; 80.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-subtitle">Semáforo: vermelho &lt; 70 • amarelo 70 a 79 • verde com troféu &ge; 80.</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2, gap="large")
 
