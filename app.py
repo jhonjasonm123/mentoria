@@ -1500,26 +1500,35 @@ def render_html_block(content: str):
         return
     st.markdown(cleaned, unsafe_allow_html=True)
 
+def log_flashcard_review(user_id: int, flashcard_id: int, response_time_seconds: float = 0):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
 
-def ensure_session_defaults():
-    defaults = {
-        "user_id": None,
-        "username": None,
-        "is_admin": False,
-        "logged_in": False,
-        "menu": "Visão Geral",
-        "flashcard_fullscreen": False,
-        "flashcard_index": 0,
-        "flashcard_show_answer": False,
-        "flashcard_show_note": False,
-        "flashcard_queue_ids": [],
-        "admin_view_user_id": None,
-        "admin_view_username": None,
-        "admin_selected_student_label": None,
-    }
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    cur.execute("""
+        INSERT INTO flashcard_review_log (
+            user_id,
+            flashcard_id,
+            reviewed_at,
+            response_time_seconds
+        )
+        VALUES (?, ?, ?, ?)
+    """, (
+        int(user_id),
+        int(flashcard_id),
+        now_str,
+        float(response_time_seconds or 0)
+    ))
+
+    cur.execute("""
+        UPDATE flashcards
+        SET last_reviewed = ?
+        WHERE id = ?
+    """, (now_str, int(flashcard_id)))
+
+    conn.commit()
+    conn.close()
 
 
 def reset_flashcard_state():
@@ -1528,6 +1537,7 @@ def reset_flashcard_state():
     st.session_state.flashcard_show_answer = False
     st.session_state.flashcard_show_note = False
     st.session_state.flashcard_queue_ids = []
+    st.session_state["flashcard_timer_card_id"] = None
 
 
 def reset_login_state():
@@ -1885,7 +1895,6 @@ def build_goal_payload_from_stage(stage_name: str):
         "monthly_mock_goal": defaults["monthly_mock_goal"],
     }
 
-
 def ensure_session_defaults():
     defaults = {
         "user_id": None,
@@ -1898,6 +1907,8 @@ def ensure_session_defaults():
         "flashcard_show_answer": False,
         "flashcard_show_note": False,
         "flashcard_queue_ids": [],
+        "flashcard_started_at": None,
+        "flashcard_timer_card_id": None,
         "admin_view_user_id": None,
         "admin_view_username": None,
         "admin_selected_student_label": None,
@@ -1908,6 +1919,7 @@ def ensure_session_defaults():
         "fc_due_only_value": True,
         "fc_search_term_value": "",
     }
+
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
@@ -1919,6 +1931,8 @@ def reset_flashcard_state():
     st.session_state.flashcard_show_answer = False
     st.session_state.flashcard_show_note = False
     st.session_state.flashcard_queue_ids = []
+    st.session_state["flashcard_timer_card_id"] = None
+    st.session_state["flashcard_started_at"] = None
 
 
 def reset_login_state():
@@ -2639,167 +2653,123 @@ def fetch_dataframe(query: str, params=()):
 
 
 def init_db():
-    conn = get_conn()
+    conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
 
+    # =========================================================
+    # USERS
+    # =========================================================
     cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            is_admin INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # =========================================================
+    # GOALS
+    # =========================================================
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            daily_questions INTEGER DEFAULT 30,
+            daily_minutes INTEGER DEFAULT 120,
+            monthly_mocks INTEGER DEFAULT 2,
+            daily_flashcards INTEGER DEFAULT 50,
+            stage TEXT DEFAULT 'Iniciante',
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # =========================================================
+    # SESSIONS
+    # =========================================================
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS study_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            study_date TEXT NOT NULL,
+            questions_solved INTEGER DEFAULT 0,
+            study_minutes INTEGER DEFAULT 0,
+            subject TEXT,
+            notes TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # =========================================================
+    # MOCKS
+    # =========================================================
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS mocks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            mock_date TEXT NOT NULL,
+            score REAL DEFAULT 0,
+            total_questions INTEGER DEFAULT 0,
+            correct_answers INTEGER DEFAULT 0,
+            notes TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # =========================================================
+    # FLASHCARDS
+    # =========================================================
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS flashcards (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            deck TEXT,
+            subject TEXT,
+            subtopic TEXT,
+            front TEXT NOT NULL,
+            back TEXT NOT NULL,
+            card_type TEXT DEFAULT 'basic',
+            tags TEXT,
+            created_by_user_id INTEGER,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            last_reviewed TEXT
+        )
+    """)
+
+    # =========================================================
+    # FLASHCARD REVIEW LOG
+    # =========================================================
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS flashcard_review_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        is_admin INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL
+        user_id INTEGER NOT NULL,
+        flashcard_id INTEGER NOT NULL,
+        reviewed_at TEXT NOT NULL,
+        response_time_seconds REAL DEFAULT 0
     )
     """)
 
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS goals (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        daily_questions_goal INTEGER NOT NULL DEFAULT 50,
-        daily_flashcard_goal INTEGER NOT NULL DEFAULT 100,
-        daily_minutes_goal INTEGER NOT NULL DEFAULT 150,
-        monthly_mock_goal INTEGER NOT NULL DEFAULT 3,
-        phase_name TEXT DEFAULT 'Amador',
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-    )
-    """)
+    cur.execute("PRAGMA table_info(flashcards)")
+    cols = [row[1] for row in cur.fetchall()]
+    if "last_reviewed" not in cols:
+        cur.execute("ALTER TABLE flashcards ADD COLUMN last_reviewed TEXT")
 
+    admin_hash = hashlib.sha256(DEFAULT_ADMIN_PASS.encode()).hexdigest()
     cur.execute("""
-    CREATE TABLE IF NOT EXISTS study_sessions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        session_date TEXT NOT NULL,
-        study_minutes INTEGER NOT NULL DEFAULT 0,
-        questions_done INTEGER NOT NULL DEFAULT 0,
-        correct_answers INTEGER NOT NULL DEFAULT 0,
-        subject TEXT DEFAULT '',
-        topic TEXT DEFAULT '',
-        notes TEXT DEFAULT '',
-        grande_area TEXT DEFAULT '',
-        created_at TEXT NOT NULL
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS schedule_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        week_no INTEGER NOT NULL,
-        area TEXT DEFAULT '',
-        subject TEXT DEFAULT '',
-        topic TEXT DEFAULT '',
-        item_type TEXT DEFAULT '',
-        title TEXT NOT NULL,
-        planned_date TEXT,
-        completed INTEGER NOT NULL DEFAULT 0,
-        completed_at TEXT,
-        created_at TEXT NOT NULL
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS flashcards (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        deck TEXT DEFAULT '',
-        subject TEXT DEFAULT '',
-        topic TEXT DEFAULT '',
-        question TEXT NOT NULL,
-        answer TEXT NOT NULL,
-        note TEXT DEFAULT '',
-        due_date TEXT,
-        last_reviewed TEXT,
-        review_count INTEGER NOT NULL DEFAULT 0,
-        lapse_count INTEGER NOT NULL DEFAULT 0,
-        ease_factor REAL NOT NULL DEFAULT 2.5,
-        interval_days INTEGER NOT NULL DEFAULT 0,
-        card_state TEXT NOT NULL DEFAULT 'new',
-        card_type TEXT NOT NULL DEFAULT 'basic',
-        cloze_text TEXT DEFAULT '',
-        cloze_answer TEXT DEFAULT '',
-        cloze_full_text TEXT DEFAULT '',
-        created_at TEXT NOT NULL
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS mocks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        mock_date TEXT NOT NULL,
-        title TEXT DEFAULT '',
-        score_percent REAL NOT NULL DEFAULT 0,
-        questions_count INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS mock_area_scores (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        mock_id INTEGER NOT NULL,
-        user_id INTEGER NOT NULL,
-        grande_area TEXT NOT NULL,
-        correct_count INTEGER NOT NULL DEFAULT 0,
-        question_count INTEGER NOT NULL DEFAULT 0,
-        accuracy_percent REAL NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS question_review_status (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        grande_area TEXT NOT NULL DEFAULT '',
-        subject TEXT NOT NULL DEFAULT '',
-        topic TEXT NOT NULL DEFAULT '',
-        review_days INTEGER NOT NULL DEFAULT 0,
-        completed_at TEXT NOT NULL,
-        created_at TEXT NOT NULL
-    )
-    """)
+        INSERT OR IGNORE INTO users (username, password_hash, is_admin)
+        VALUES (?, ?, 1)
+    """, (DEFAULT_ADMIN_USER, admin_hash))
 
     conn.commit()
-
-    cur.execute("SELECT id FROM users WHERE username = ?", (DEFAULT_ADMIN_USER,))
-    admin = cur.fetchone()
-
-    if not admin:
-        cur.execute("""
-            INSERT INTO users (username, password_hash, is_admin, created_at)
-            VALUES (?, ?, ?, ?)
-        """, (
-            DEFAULT_ADMIN_USER,
-            hash_password(DEFAULT_ADMIN_PASS),
-            1,
-            datetime.now().isoformat()
-        ))
-        admin_id = cur.lastrowid
-
-        payload = build_goal_payload_from_stage("Amador")
-        cur.execute("""
-            INSERT INTO goals (
-                user_id, daily_questions_goal, daily_flashcard_goal,
-                daily_minutes_goal, monthly_mock_goal, phase_name,
-                created_at, updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            admin_id,
-            payload["daily_questions_goal"],
-            payload["daily_flashcard_goal"],
-            payload["daily_minutes_goal"],
-            payload["monthly_mock_goal"],
-            payload["phase_name"],
-            datetime.now().isoformat(),
-            datetime.now().isoformat(),
-        ))
-        conn.commit()
-
     conn.close()
+
+
+# =========================================================
+# USUÁRIOS / METAS
+# =========================================================
+def create_user(username: str, password: str, is_admin: int = 0):
+    username = normalize_text(username)
+    password = normalize_text(password)
 
 
 # =========================================================
@@ -2932,7 +2902,6 @@ def create_user(username: str, password: str, is_admin: int = 0):
         return False, f"Erro ao criar usuário: {e}"
     finally:
         conn.close()
-
 
 def authenticate_user(username: str, password: str):
     conn = get_conn()
@@ -3461,7 +3430,59 @@ def get_dashboard_base_data(user_id: int):
         "goal": goal,
         "review_df": review_df,
     }
+def get_flashcard_extra_metrics(user_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
 
+    # acumulado total
+    cur.execute("""
+        SELECT COUNT(*)
+        FROM flashcard_review_log
+        WHERE user_id = ?
+    """, (int(user_id),))
+    reviewed_total = cur.fetchone()[0] or 0
+
+    # revisados hoje
+    cur.execute("""
+        SELECT COUNT(*)
+        FROM flashcard_review_log
+        WHERE user_id = ?
+          AND date(reviewed_at) = date('now', 'localtime')
+    """, (int(user_id),))
+    reviewed_today = cur.fetchone()[0] or 0
+
+    # soma do tempo hoje
+    cur.execute("""
+        SELECT COALESCE(SUM(response_time_seconds), 0)
+        FROM flashcard_review_log
+        WHERE user_id = ?
+          AND date(reviewed_at) = date('now', 'localtime')
+          AND response_time_seconds > 0
+    """, (int(user_id),))
+    total_seconds_today = cur.fetchone()[0] or 0
+
+    # média do tempo hoje
+    cur.execute("""
+        SELECT COALESCE(AVG(response_time_seconds), 0)
+        FROM flashcard_review_log
+        WHERE user_id = ?
+          AND date(reviewed_at) = date('now', 'localtime')
+          AND response_time_seconds > 0
+    """, (int(user_id),))
+    avg_seconds_today = cur.fetchone()[0] or 0
+
+    cards_per_hour_today = 0.0
+    if total_seconds_today > 0:
+        cards_per_hour_today = reviewed_today / (total_seconds_today / 3600)
+
+    conn.close()
+
+    return {
+        "reviewed_total": int(reviewed_total),
+        "reviewed_today": int(reviewed_today),
+        "avg_seconds_today": float(avg_seconds_today),
+        "cards_per_hour_today": float(cards_per_hour_today),
+    }
 
 def build_dashboard_metrics(user_id: int):
     data = get_dashboard_base_data(user_id)
@@ -3691,6 +3712,8 @@ def build_dashboard_metrics(user_id: int):
     }
 
 def render_kpi_cards(metrics: dict):
+    flash_extra = get_flashcard_extra_metrics(st.session_state.user_id)
+
     cards = [
         {
             "label": "Questões do dia",
@@ -3703,14 +3726,14 @@ def render_kpi_cards(metrics: dict):
             "sub": f"Meta diária: {metrics['daily_minutes_goal']} min",
         },
         {
-            "label": "Simulados do mês",
-            "value": metrics["mocks_this_month"],
-            "sub": f"Meta mensal: {metrics['monthly_mock_goal']}",
+            "label": "Flashcards acumulados",
+            "value": flash_extra["reviewed_total"],
+            "sub": f'Velocidade: {flash_extra["cards_per_hour_today"]:.1f} fc/h',
         },
         {
-            "label": "Meta de flashcards",
-            "value": metrics["daily_flashcard_goal"],
-            "sub": "Revisões por dia",
+            "label": "Tempo médio/card",
+            "value": f'{flash_extra["avg_seconds_today"]:.1f}s',
+            "sub": "Base de hoje",
         },
     ]
 
@@ -3846,9 +3869,14 @@ def render_ranking_10_panel(metrics: dict):
 
 
 def render_strategy_panel(metrics: dict):
+    flash_extra = get_flashcard_extra_metrics(st.session_state.user_id)
+
     stats = [
         ("Etapa atual", str(metrics["phase_name"])),
         ("Flashcards/dia", str(metrics["daily_flashcard_goal"])),
+        ("Flashcards acumulados", str(flash_extra["reviewed_total"])),
+        ("Velocidade", f'{flash_extra["cards_per_hour_today"]:.1f} fc/h'),
+        ("Tempo médio", f'{flash_extra["avg_seconds_today"]:.1f}s'),
         ("Média de simulados no mês", f'{metrics["avg_mock_score"]:.1f}%'),
         ("Itens concluídos", str(metrics["completed_items"])),
         ("Itens pendentes", str(metrics["pending_items"])),
@@ -5642,6 +5670,25 @@ def ensure_flashcards_extended_schema():
     finally:
         conn.close()
 
+def start_flashcard_timer():
+    st.session_state["flashcard_started_at"] = datetime.now().timestamp()
+def finish_flashcard_and_log(user_id: int, flashcard_id: int):
+    started_at = st.session_state.get("flashcard_started_at")
+    response_time_seconds = 0.0
+
+    if started_at:
+        response_time_seconds = max(
+            0.0,
+            datetime.now().timestamp() - float(started_at)
+        )
+
+    log_flashcard_review(
+        user_id=user_id,
+        flashcard_id=flashcard_id,
+        response_time_seconds=response_time_seconds
+    )
+
+    st.session_state["flashcard_started_at"] = datetime.now().timestamp()
 
 def initialize_new_flashcard_defaults(card_id: int):
     ensure_flashcards_extended_schema()
@@ -6705,6 +6752,11 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
     card_id = int(row["id"])
     card_type = normalize_text(row.get("card_type", "basic")) or "basic"
 
+    current_timer_card_id = st.session_state.get("flashcard_timer_card_id")
+    if current_timer_card_id != card_id:
+        start_flashcard_timer()
+        st.session_state["flashcard_timer_card_id"] = card_id
+
     if card_type == "cloze":
         question = normalize_text(row.get("cloze_text", "")) or normalize_text(row.get("question", ""))
         answer = normalize_text(row.get("cloze_answer", "")) or normalize_text(row.get("answer", ""))
@@ -6828,6 +6880,7 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
 
         with r1:
             if st.button("De novo", key=f"fc_rate_again_{card_id}", use_container_width=True):
+                finish_flashcard_and_log(st.session_state.user_id, card_id)
                 ok, _ = review_flashcard(card_id, "again")
                 if ok:
                     st.session_state.flashcard_show_answer = False
@@ -6838,6 +6891,7 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
 
         with r2:
             if st.button("Difícil", key=f"fc_rate_hard_{card_id}", use_container_width=True):
+                finish_flashcard_and_log(st.session_state.user_id, card_id)
                 ok, _ = review_flashcard(card_id, "hard")
                 if ok:
                     st.session_state.flashcard_show_answer = False
@@ -6848,6 +6902,7 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
 
         with r3:
             if st.button("Bom", key=f"fc_rate_good_{card_id}", use_container_width=True):
+                finish_flashcard_and_log(st.session_state.user_id, card_id)
                 ok, _ = review_flashcard(card_id, "good")
                 if ok:
                     st.session_state.flashcard_show_answer = False
@@ -6858,6 +6913,7 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
 
         with r4:
             if st.button("Fácil", key=f"fc_rate_easy_{card_id}", use_container_width=True):
+                finish_flashcard_and_log(st.session_state.user_id, card_id)
                 ok, _ = review_flashcard(card_id, "easy")
                 if ok:
                     st.session_state.flashcard_show_answer = False
@@ -6874,13 +6930,13 @@ def render_flashcard_player(filtered_df: pd.DataFrame):
         st.session_state.flashcard_show_answer = False
         st.session_state.flashcard_show_note = False
         st.session_state.flashcard_queue_ids = []
+        st.session_state["flashcard_timer_card_id"] = None
         safe_rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-
 
 def render_flashcards_page():
     ensure_flashcards_extended_schema()
@@ -8838,6 +8894,16 @@ def ensure_schema_upgrades():
         question_count INTEGER NOT NULL DEFAULT 0,
         accuracy_percent REAL NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS flashcard_review_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        flashcard_id INTEGER NOT NULL,
+        reviewed_at TEXT NOT NULL,
+        response_time_seconds REAL DEFAULT 0
     )
     """)
 
