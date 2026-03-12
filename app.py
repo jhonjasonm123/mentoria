@@ -3492,6 +3492,9 @@ def build_dashboard_metrics(user_id: int):
     goal = data["goal"]
     review_df = data["review_df"].copy()
 
+    flash_extra = get_flashcard_extra_metrics(user_id)
+    flashcards_reviewed_today = int(flash_extra["reviewed_today"])
+
     flashcards_df = fetch_flashcards_df(user_id)
     flashcards_reviewed_today = 0
     if not flashcards_df.empty and "last_reviewed" in flashcards_df.columns:
@@ -9203,3 +9206,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
