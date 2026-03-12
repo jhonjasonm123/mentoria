@@ -2653,6 +2653,13 @@ def fetch_dataframe(query: str, params=()):
 
 
 def init_db():
+
+def zerar_logs_flashcards():
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM flashcard_review_log")
+    conn.commit()
+    conn.close()
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
 
@@ -2763,13 +2770,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-def zerar_logs_flashcards():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("DELETE FROM flashcard_review_log")
-    conn.commit()
-    conn.close()
-    
+
 # =========================================================
 # USUÁRIOS / METAS
 # =========================================================
@@ -3505,9 +3506,6 @@ def build_dashboard_metrics(user_id: int):
     mocks_df = data["mocks_df"].copy()
     goal = data["goal"]
     review_df = data["review_df"].copy()
-
-    flash_extra = get_flashcard_extra_metrics(user_id)
-    flashcards_reviewed_today = int(flash_extra["reviewed_today"])
 
     flashcards_df = fetch_flashcards_df(user_id)
     flashcards_reviewed_today = 0
@@ -9221,6 +9219,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
