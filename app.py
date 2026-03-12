@@ -3434,48 +3434,56 @@ def get_flashcard_extra_metrics(user_id: int):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
 
-    # acumulado total
-    cur.execute("""
-        SELECT COUNT(*)
-        FROM flashcard_review_log
-        WHERE user_id = ?
-    """, (int(user_id),))
-    reviewed_total = cur.fetchone()[0] or 0
+    reviewed_total = 0
+    reviewed_today = 0
+    total_seconds_today = 0
+    avg_seconds_today = 0
 
-    # revisados hoje
-    cur.execute("""
-        SELECT COUNT(*)
-        FROM flashcard_review_log
-        WHERE user_id = ?
-          AND date(reviewed_at) = date('now', 'localtime')
-    """, (int(user_id),))
-    reviewed_today = cur.fetchone()[0] or 0
+    try:
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM flashcard_review_log
+            WHERE user_id = ?
+        """, (int(user_id),))
+        reviewed_total = cur.fetchone()[0] or 0
 
-    # soma do tempo hoje
-    cur.execute("""
-        SELECT COALESCE(SUM(response_time_seconds), 0)
-        FROM flashcard_review_log
-        WHERE user_id = ?
-          AND date(reviewed_at) = date('now', 'localtime')
-          AND response_time_seconds > 0
-    """, (int(user_id),))
-    total_seconds_today = cur.fetchone()[0] or 0
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM flashcard_review_log
+            WHERE user_id = ?
+              AND substr(reviewed_at, 1, 10) = ?
+        """, (int(user_id), date.today().isoformat()))
+        reviewed_today = cur.fetchone()[0] or 0
 
-    # média do tempo hoje
-    cur.execute("""
-        SELECT COALESCE(AVG(response_time_seconds), 0)
-        FROM flashcard_review_log
-        WHERE user_id = ?
-          AND date(reviewed_at) = date('now', 'localtime')
-          AND response_time_seconds > 0
-    """, (int(user_id),))
-    avg_seconds_today = cur.fetchone()[0] or 0
+        cur.execute("""
+            SELECT COALESCE(SUM(response_time_seconds), 0)
+            FROM flashcard_review_log
+            WHERE user_id = ?
+              AND substr(reviewed_at, 1, 10) = ?
+              AND response_time_seconds > 0
+        """, (int(user_id), date.today().isoformat()))
+        total_seconds_today = cur.fetchone()[0] or 0
+
+        cur.execute("""
+            SELECT COALESCE(AVG(response_time_seconds), 0)
+            FROM flashcard_review_log
+            WHERE user_id = ?
+              AND substr(reviewed_at, 1, 10) = ?
+              AND response_time_seconds > 0
+        """, (int(user_id), date.today().isoformat()))
+        avg_seconds_today = cur.fetchone()[0] or 0
+
+    except Exception:
+        reviewed_total = 0
+        reviewed_today = 0
+        total_seconds_today = 0
+        avg_seconds_today = 0
+    finally:
+        conn.close()
 
     cards_per_hour_today = 0.0
-    if total_seconds_today > 0:
+    if total_seconds_today and total_seconds_today > 0:
         cards_per_hour_today = reviewed_today / (total_seconds_today / 3600)
-
-    conn.close()
 
     return {
         "reviewed_total": int(reviewed_total),
@@ -9206,4 +9214,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
