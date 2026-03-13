@@ -19,6 +19,12 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 
+st.set_page_config(
+    page_title="Nexus Med",
+    page_icon="🩺",
+    layout="wide"
+)
+
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
@@ -9202,3 +9208,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
