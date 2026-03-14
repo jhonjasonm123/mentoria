@@ -891,9 +891,12 @@ def generate_mock_ranking_pdf(simulado_nome, df):
 APP_NAME = "🩺 Nexus Med"
 APP_SUBTITLE = "Plataforma premium de acompanhamento para Residência Médica - Mentoria do Jhon"
 APP_VERSION = "PREMIUM"
-DB_PATH = "/workspaces/mentoria/data/nexus_med.db"
-os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+DB_PATH = os.path.join(DATA_DIR, "nexus_med.db")
+if not os.path.exists(DATA_DIR):
+    os.mkdir(DATA_DIR)
 DEFAULT_ADMIN_USER = "admin"
 DEFAULT_ADMIN_PASS = os.environ.get("MENTORIA_ADMIN_PASS", "admin123")
 
