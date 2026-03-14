@@ -5074,22 +5074,22 @@ def get_questions_review_rule(accuracy: float):
 
     if accuracy < 70:
         return {
-            "review_days": 15,
-            "review_label": "Revisão em 15 dias",
+            "review_days": 20,
+            "review_label": "Revisão em 20 dias",
             "priority_label": "Alta prioridade",
             "priority_order": 1,
         }
-    elif accuracy <= 80:
+    elif accuracy <= 79:
         return {
-            "review_days": 23,
-            "review_label": "Revisão em 23 dias",
+            "review_days": 30,
+            "review_label": "Revisão em 30 dias",
             "priority_label": "Média prioridade",
             "priority_order": 2,
         }
     else:
         return {
-            "review_days": 30,
-            "review_label": "Revisão em 30 dias",
+            "review_days": 40,
+            "review_label": "Revisão em 40 dias",
             "priority_label": "Baixa prioridade",
             "priority_order": 3,
         }
@@ -5243,7 +5243,7 @@ def render_questions_review_panel(review_df: pd.DataFrame, user_id: int):
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">Revisão automática por rendimento</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="section-subtitle">Regra aplicada: menor que 70% = 15 dias • 70 a 80% = 23 dias • maior que 80% = 30 dias.</div>',
+        '<div class="section-subtitle">Regra aplicada: menor que 70% = 20 dias • 70 a 79% = 30 dias • maior que 79% = 40 dias.</div>',
         unsafe_allow_html=True
     )
 
