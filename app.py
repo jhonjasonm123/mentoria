@@ -2690,19 +2690,22 @@ def init_db():
         )
     """)
 
-    # =========================================================
+        # =========================================================
     # SESSIONS
     # =========================================================
     cur.execute("""
         CREATE TABLE IF NOT EXISTS study_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
-            study_date TEXT NOT NULL,
-            questions_solved INTEGER DEFAULT 0,
+            session_date TEXT NOT NULL,
             study_minutes INTEGER DEFAULT 0,
+            questions_done INTEGER DEFAULT 0,
+            correct_answers INTEGER DEFAULT 0,
             subject TEXT,
+            topic TEXT,
             notes TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            grande_area TEXT DEFAULT ''
         )
     """)
 
@@ -8833,7 +8836,7 @@ def ensure_schema_upgrades():
     conn = get_conn()
     cur = conn.cursor()
 
-    # -----------------------------------------------------
+        # -----------------------------------------------------
     # study_sessions
     # -----------------------------------------------------
     try:
@@ -8842,10 +8845,67 @@ def ensure_schema_upgrades():
     except Exception:
         session_cols = []
 
-    if "grande_area" not in session_cols:
-        cur.execute("ALTER TABLE study_sessions ADD COLUMN grande_area TEXT DEFAULT ''")
+    session_alters = {
+        "session_date": "ALTER TABLE study_sessions ADD COLUMN session_date TEXT",
+        "questions_done": "ALTER TABLE study_sessions ADD COLUMN questions_done INTEGER DEFAULT 0",
+        "correct_answers": "ALTER TABLE study_sessions ADD COLUMN correct_answers INTEGER DEFAULT 0",
+        "topic": "ALTER TABLE study_sessions ADD COLUMN topic TEXT",
+        "grande_area": "ALTER TABLE study_sessions ADD COLUMN grande_area TEXT DEFAULT ''",
+    }
 
-        # -----------------------------------------------------
+    for col, ddl in session_alters.items():
+        if col not in session_cols:
+            cur.execute(ddl)
+
+    # Migração dos nomes antigos para os novos
+    try:
+        cur.execute("""
+            UPDATE study_sessions
+            SET session_date = study_date
+            WHERE (session_date IS NULL OR session_date = '')
+              AND study_date IS NOT NULL
+        """)
+    except Exception:
+        pass
+
+    try:
+        cur.execute("""
+            UPDATE study_sessions
+            SET questions_done = questions_solved
+            WHERE (questions_done IS NULL OR questions_done = 0)
+              AND questions_solved IS NOT NULL
+        """)
+    except Exception:
+        pass
+
+    try:
+        cur.execute("""
+            UPDATE study_sessions
+            SET correct_answers = 0
+            WHERE correct_answers IS NULL
+        """)
+    except Exception:
+        pass
+
+    try:
+        cur.execute("""
+            UPDATE study_sessions
+            SET topic = ''
+            WHERE topic IS NULL
+        """)
+    except Exception:
+        pass
+
+    try:
+        cur.execute("""
+            UPDATE study_sessions
+            SET grande_area = ''
+            WHERE grande_area IS NULL
+        """)
+    except Exception:
+        pass
+
+    # -----------------------------------------------------
     # goals
     # -----------------------------------------------------
     try:
