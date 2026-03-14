@@ -8933,6 +8933,45 @@ def ensure_schema_upgrades():
         pass
 
     # -----------------------------------------------------
+    # schedule_items
+    # -----------------------------------------------------
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS schedule_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        week_no INTEGER DEFAULT 0,
+        area TEXT DEFAULT '',
+        subject TEXT DEFAULT '',
+        topic TEXT DEFAULT '',
+        item_type TEXT DEFAULT 'Teoria',
+        title TEXT NOT NULL,
+        planned_date TEXT,
+        completed INTEGER DEFAULT 0,
+        completed_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    
+    # =========================================================
+    # SCHEDULE ITEMS
+    # =========================================================
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS schedule_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            week_no INTEGER DEFAULT 0,
+            area TEXT DEFAULT '',
+            subject TEXT DEFAULT '',
+            topic TEXT DEFAULT '',
+            item_type TEXT DEFAULT 'Teoria',
+            title TEXT NOT NULL,
+            planned_date TEXT,
+            completed INTEGER DEFAULT 0,
+            completed_at TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    # -----------------------------------------------------
     # goals
     # -----------------------------------------------------
     try:
