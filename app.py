@@ -891,7 +891,7 @@ def generate_mock_ranking_pdf(simulado_nome, df):
 APP_NAME = "🩺 Nexus Med"
 APP_SUBTITLE = "Plataforma premium de acompanhamento para Residência Médica - Mentoria do Jhon"
 APP_VERSION = "PREMIUM"
-DB_PATH = "nexo_med.db"
+DB_PATH = "nexus_med_prod.db"
 
 DEFAULT_ADMIN_USER = "admin"
 DEFAULT_ADMIN_PASS = os.environ.get("MENTORIA_ADMIN_PASS", "admin123")
