@@ -2673,18 +2673,19 @@ def init_db():
         )
     """)
 
-    # =========================================================
+        # =========================================================
     # GOALS
     # =========================================================
     cur.execute("""
         CREATE TABLE IF NOT EXISTS goals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
-            daily_questions INTEGER DEFAULT 30,
-            daily_minutes INTEGER DEFAULT 120,
-            monthly_mocks INTEGER DEFAULT 2,
-            daily_flashcards INTEGER DEFAULT 50,
-            stage TEXT DEFAULT 'Iniciante',
+            daily_questions_goal INTEGER NOT NULL DEFAULT 30,
+            daily_flashcard_goal INTEGER NOT NULL DEFAULT 50,
+            daily_minutes_goal INTEGER NOT NULL DEFAULT 120,
+            monthly_mock_goal INTEGER NOT NULL DEFAULT 2,
+            phase_name TEXT DEFAULT 'Iniciante',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -8836,7 +8837,7 @@ def ensure_schema_upgrades():
     if "grande_area" not in session_cols:
         cur.execute("ALTER TABLE study_sessions ADD COLUMN grande_area TEXT DEFAULT ''")
 
-    # -----------------------------------------------------
+        # -----------------------------------------------------
     # goals
     # -----------------------------------------------------
     try:
@@ -8845,11 +8846,20 @@ def ensure_schema_upgrades():
     except Exception:
         goal_cols = []
 
+    if "daily_questions_goal" not in goal_cols:
+        cur.execute("ALTER TABLE goals ADD COLUMN daily_questions_goal INTEGER NOT NULL DEFAULT 30")
+
     if "daily_flashcard_goal" not in goal_cols:
-        cur.execute("ALTER TABLE goals ADD COLUMN daily_flashcard_goal INTEGER NOT NULL DEFAULT 100")
+        cur.execute("ALTER TABLE goals ADD COLUMN daily_flashcard_goal INTEGER NOT NULL DEFAULT 50")
+
+    if "daily_minutes_goal" not in goal_cols:
+        cur.execute("ALTER TABLE goals ADD COLUMN daily_minutes_goal INTEGER NOT NULL DEFAULT 120")
+
+    if "monthly_mock_goal" not in goal_cols:
+        cur.execute("ALTER TABLE goals ADD COLUMN monthly_mock_goal INTEGER NOT NULL DEFAULT 2")
 
     if "phase_name" not in goal_cols:
-        cur.execute("ALTER TABLE goals ADD COLUMN phase_name TEXT DEFAULT 'Amador'")
+        cur.execute("ALTER TABLE goals ADD COLUMN phase_name TEXT DEFAULT 'Iniciante'")
 
     if "created_at" not in goal_cols:
         cur.execute("ALTER TABLE goals ADD COLUMN created_at TEXT")
