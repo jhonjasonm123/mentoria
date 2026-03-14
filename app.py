@@ -2722,25 +2722,33 @@ def init_db():
         )
     """)
 
-    # =========================================================
+        # =========================================================
     # FLASHCARDS
     # =========================================================
     cur.execute("""
         CREATE TABLE IF NOT EXISTS flashcards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             deck TEXT,
             subject TEXT,
-            subtopic TEXT,
-            front TEXT NOT NULL,
-            back TEXT NOT NULL,
-            card_type TEXT DEFAULT 'basic',
-            tags TEXT,
-            created_by_user_id INTEGER,
+            topic TEXT,
+            question TEXT,
+            answer TEXT,
+            note TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            last_reviewed TEXT
+            due_date TEXT,
+            last_reviewed TEXT,
+            review_count INTEGER NOT NULL DEFAULT 0,
+            lapse_count INTEGER NOT NULL DEFAULT 0,
+            ease_factor REAL NOT NULL DEFAULT 2.5,
+            interval_days INTEGER NOT NULL DEFAULT 0,
+            card_state TEXT NOT NULL DEFAULT 'new',
+            card_type TEXT NOT NULL DEFAULT 'basic',
+            cloze_text TEXT DEFAULT '',
+            cloze_answer TEXT DEFAULT '',
+            cloze_full_text TEXT DEFAULT ''
         )
     """)
-
     # =========================================================
     # FLASHCARD REVIEW LOG
     # =========================================================
@@ -8877,6 +8885,11 @@ def ensure_schema_upgrades():
         flashcard_cols = []
 
     flashcard_alters = {
+        "user_id": "ALTER TABLE flashcards ADD COLUMN user_id INTEGER",
+        "topic": "ALTER TABLE flashcards ADD COLUMN topic TEXT",
+        "question": "ALTER TABLE flashcards ADD COLUMN question TEXT",
+        "answer": "ALTER TABLE flashcards ADD COLUMN answer TEXT",
+        "note": "ALTER TABLE flashcards ADD COLUMN note TEXT",
         "due_date": "ALTER TABLE flashcards ADD COLUMN due_date TEXT",
         "last_reviewed": "ALTER TABLE flashcards ADD COLUMN last_reviewed TEXT",
         "review_count": "ALTER TABLE flashcards ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0",
@@ -8893,6 +8906,42 @@ def ensure_schema_upgrades():
     for col, ddl in flashcard_alters.items():
         if col not in flashcard_cols:
             cur.execute(ddl)
+
+    # Migração dos nomes antigos para os novos
+    try:
+        cur.execute("UPDATE flashcards SET topic = subtopic WHERE (topic IS NULL OR topic = '') AND subtopic IS NOT NULL")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("UPDATE flashcards SET question = front WHERE (question IS NULL OR question = '') AND front IS NOT NULL")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("UPDATE flashcards SET answer = back WHERE (answer IS NULL OR answer = '') AND back IS NOT NULL")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("UPDATE flashcards SET note = '' WHERE note IS NULL")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("UPDATE flashcards SET due_date = ? WHERE due_date IS NULL OR due_date = ''", (date.today().isoformat(),))
+    except Exception:
+        pass
+
+    try:
+        cur.execute("UPDATE flashcards SET card_state = 'new' WHERE card_state IS NULL OR card_state = ''")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("UPDATE flashcards SET card_type = 'basic' WHERE card_type IS NULL OR card_type = ''")
+    except Exception:
+        pass
 
     # -----------------------------------------------------
     # mock_area_scores
