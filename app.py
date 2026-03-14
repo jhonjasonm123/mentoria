@@ -2717,10 +2717,9 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             mock_date TEXT NOT NULL,
-            score REAL DEFAULT 0,
-            total_questions INTEGER DEFAULT 0,
-            correct_answers INTEGER DEFAULT 0,
-            notes TEXT,
+            title TEXT,
+            score_percent REAL DEFAULT 0,
+            questions_count INTEGER DEFAULT 0,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -7410,22 +7409,37 @@ def add_mock(user_id: int, mock_date, title: str, score_percent: float, question
     if to_int(questions_count, 0) < 0:
         return False, "O número de questões não pode ser negativo."
 
+    mock_date_str = mock_date.isoformat() if hasattr(mock_date, "isoformat") else str(mock_date)
+
     conn = get_conn()
     cur = conn.cursor()
     try:
         cur.execute(
             """
             INSERT INTO mocks (
-                user_id, mock_date, title, score_percent, questions_count, created_at
+                user_id,
+                mock_date,
+                title,
+                score_percent,
+                questions_count,
+                score,
+                total_questions,
+                correct_answers,
+                notes,
+                created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                user_id,
-                mock_date.isoformat() if hasattr(mock_date, "isoformat") else str(mock_date),
+                int(user_id),
+                mock_date_str,
                 normalize_text(title),
                 to_float(score_percent, 0),
                 to_int(questions_count, 0),
+                to_float(score_percent, 0),
+                to_int(questions_count, 0),
+                int(round((to_float(score_percent, 0) / 100) * to_int(questions_count, 0))),
+                "",
                 datetime.now().isoformat()
             )
         )
@@ -7448,7 +7462,7 @@ def add_mock(user_id: int, mock_date, title: str, score_percent: float, question
                     """,
                     (
                         mock_id,
-                        user_id,
+                        int(user_id),
                         ga,
                         correct_count,
                         question_count,
@@ -9015,7 +9029,54 @@ def ensure_schema_upgrades():
         cur.execute("UPDATE flashcards SET card_type = 'basic' WHERE card_type IS NULL OR card_type = ''")
     except Exception:
         pass
+    # -----------------------------------------------------
+    # mocks
+    # -----------------------------------------------------
+    try:
+        cur.execute("PRAGMA table_info(mocks)")
+        mock_cols = [row[1] for row in cur.fetchall()]
+    except Exception:
+        mock_cols = []
 
+    mock_alters = {
+        "title": "ALTER TABLE mocks ADD COLUMN title TEXT",
+        "score_percent": "ALTER TABLE mocks ADD COLUMN score_percent REAL DEFAULT 0",
+        "questions_count": "ALTER TABLE mocks ADD COLUMN questions_count INTEGER DEFAULT 0",
+    }
+
+    for col, ddl in mock_alters.items():
+        if col not in mock_cols:
+            cur.execute(ddl)
+
+    # Migração dos nomes antigos para os novos
+    try:
+        cur.execute("""
+            UPDATE mocks
+            SET title = 'Simulado'
+            WHERE title IS NULL OR title = ''
+        """)
+    except Exception:
+        pass
+
+    try:
+        cur.execute("""
+            UPDATE mocks
+            SET score_percent = score
+            WHERE (score_percent IS NULL OR score_percent = 0)
+              AND score IS NOT NULL
+        """)
+    except Exception:
+        pass
+
+    try:
+        cur.execute("""
+            UPDATE mocks
+            SET questions_count = total_questions
+            WHERE (questions_count IS NULL OR questions_count = 0)
+              AND total_questions IS NOT NULL
+        """)
+    except Exception:
+        pass
     # -----------------------------------------------------
     # mock_area_scores
     # -----------------------------------------------------
