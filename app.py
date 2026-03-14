@@ -4939,21 +4939,35 @@ def add_study_session(
     if to_int(correct_answers, 0) > to_int(questions_done, 0):
         return False, "Acertos não podem ser maiores que questões."
 
+    session_date_str = session_date.isoformat() if hasattr(session_date, "isoformat") else str(session_date)
+
     conn = get_conn()
     cur = conn.cursor()
     try:
         cur.execute(
             """
             INSERT INTO study_sessions (
-                user_id, session_date, study_minutes, questions_done,
-                correct_answers, subject, topic, notes, created_at, grande_area
+                user_id,
+                session_date,
+                study_date,
+                study_minutes,
+                questions_done,
+                questions_solved,
+                correct_answers,
+                subject,
+                topic,
+                notes,
+                created_at,
+                grande_area
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 int(user_id),
-                session_date.isoformat() if hasattr(session_date, "isoformat") else str(session_date),
+                session_date_str,
+                session_date_str,
                 to_int(study_minutes, 0),
+                to_int(questions_done, 0),
                 to_int(questions_done, 0),
                 to_int(correct_answers, 0),
                 normalize_text(subject),
@@ -8836,7 +8850,7 @@ def ensure_schema_upgrades():
     conn = get_conn()
     cur = conn.cursor()
 
-        # -----------------------------------------------------
+    # -----------------------------------------------------
     # study_sessions
     # -----------------------------------------------------
     try:
@@ -8857,7 +8871,6 @@ def ensure_schema_upgrades():
         if col not in session_cols:
             cur.execute(ddl)
 
-    # Migração dos nomes antigos para os novos
     try:
         cur.execute("""
             UPDATE study_sessions
