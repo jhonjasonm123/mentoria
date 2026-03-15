@@ -7807,11 +7807,11 @@ def render_mock_multiuser_ranking():
     leader = df.iloc[0]
     last = df.iloc[-1]
 
-    NÃO FEZ MAIS QUE A OBRIGAÇÃO = len(df[df["score_percent"] >= 85])
-    alta = len(df[(df["score_percent"] >= 80) & (df["score_percent"] < 85)])
-    PRA FICAR RUIM TEM QUE MELHORAR MUITO= len(df[(df["score_percent"] >= 70) & (df["score_percent"] < 80)])
-    inter = len(df[(df["score_percent"] >= 60) & (df["score_percent"] < 70)])
-    NASCEU PRA COIÓ = len(df[df["score_percent"] < 60])
+    nao_fez_mais_que_a_obrigacao = len(df[df["score_percent"] >= 85])
+    arquimedes_faz_melhor = len(df[(df["score_percent"] >= 80) & (df["score_percent"] < 85)])
+    precisa_melhorar_muito = len(df[(df["score_percent"] >= 70) & (df["score_percent"] < 80)])
+    da_pra_passar_mfc = len(df[(df["score_percent"] >= 60) & (df["score_percent"] < 70)])
+    nasceu_pra_coio = len(df[df["score_percent"] < 60])
 
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     with c1:
@@ -7861,8 +7861,12 @@ def render_mock_multiuser_ranking():
     )
 
     st.write(
-        f"Distribuição do grupo: NÃO FEZ MAIS QUE A OBRIGAÇÃO = {NÃO FEZ MAIS QUE A OBRIGAÇÃO}, O ARQUIMEDES FAZ MELHOR = {O ARQUIMEDES FAZ MELHOR}, "
-        f"PRA FICAR RUIM TEM QUE MELHORAR MUITO = {PRA FICAR RUIM TEM QUE MELHORAR MUITO}, DÁ PRA PASSAR EM MFC = {DÁ PRA PASSAR EM MFC}, NASCEU PRA COIÓ = {NASCEU PRA COIÓ}."
+        f"Distribuição do grupo: "
+        f"NÃO FEZ MAIS QUE A OBRIGAÇÃO = {nao_fez_mais_que_a_obrigacao}, "
+        f"O ARQUIMEDES FAZ MELHOR = {arquimedes_faz_melhor}, "
+        f"PRA FICAR RUIM TEM QUE MELHORAR MUITO = {precisa_melhorar_muito}, "
+        f"DÁ PRA PASSAR EM MFC = {da_pra_passar_mfc}, "
+        f"NASCEU PRA COIÓ = {nasceu_pra_coio}."
     )
 
     if geral["desvio"] <= 5:
@@ -7901,7 +7905,7 @@ def render_mock_multiuser_ranking():
             extra = "Leitura estratégica: perfil de excelência e manutenção de alto nível."
             st.success(texto + " " + extra)
         elif score >= 80:
-            extra = "Leitura estratégica: desempenho competitivo com potencial de chegar à NÃO FEZ MAIS QUE A OBRIGAÇÃO."
+            extra = "Leitura estratégica: desempenho competitivo com potencial de chegar à faixa máxima."
             st.success(texto + " " + extra)
         elif score >= 70:
             extra = "Leitura estratégica: boa base, mas ainda com margem clara de crescimento."
