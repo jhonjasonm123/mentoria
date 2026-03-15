@@ -739,8 +739,8 @@ def generate_mock_ranking_pdf(simulado_nome, df):
     story.append(Paragraph("2. Leitura Estratégica do Grupo", section_style))
     story.append(Paragraph(
         (
-            f"Distribuição de performance: NÃO FEZ MAIS QUE A OBRIGAÇÃO = <b>{NÃO FEZ MAIS QUE A OBRIGAÇÃO}</b>, O ARQUIMEDES FAZ MELHOR = <b>{alta}</b>, "
-            f"PRA FICAR RUIM TEM QUE MELHORAR MUITO = <b>{PRA FICAR RUIM TEM QUE MELHORAR MUITO}</b>, DÁ PRA PASSAR EM MFC = <b>{DÁ PRA PASSAR EM MFC}</b>, NASCEU PRA COIÓ = <b>{NASCEU PRA COIÓ}</b>."
+            f"Distribuição de performance: NÃO FEZ MAIS QUE A OBRIGAÇÃO = <b>{ELITE}</b>, O ARQUIMEDES FAZ MELHOR = <b>{BOA}</b>, "
+            f"PRA FICAR RUIM TEM QUE MELHORAR MUITO = <b>{INTER}</b>, DÁ PRA PASSAR EM MFC = <b>{MEDIANO}</b>, NASCEU PRA COIÓ = <b>{MISERAVEL}</b>."
         ),
         body_style
     ))
