@@ -378,15 +378,15 @@ def build_mock_diagnostics(df):
 def classify_performance(score):
     score = safe_float(score)
     if score >= 85:
-        return "Elite"
+        return "NÃO FEZ MAIS QUE A OBRIGAÇÃO"
     elif score >= 80:
-        return "Alta performance"
+        return "O ARQUIMEDES FAZ MELHOR"
     elif score >= 70:
-        return "Boa performance"
+        return "PRA FICAR RUIM TEM QUE MELHORAR MUITO"
     elif score >= 60:
-        return "Intermediária"
+        return "DÁ PRA PASSAR EM MFC"
     else:
-        return "Crítica"
+        return "NASCEU PRA COIÓ"
 
 
 def build_user_diagnostic_text(row, geral):
@@ -709,11 +709,11 @@ def generate_mock_ranking_pdf(simulado_nome, df):
     top3 = df.head(3).copy()
     bottom3 = df.tail(3).copy()
 
-    elite = len(df[df["score_percent"] >= 85])
+    NÃO FEZ MAIS QUE A OBRIGAÇÃO = len(df[df["score_percent"] >= 85])
     alta = len(df[(df["score_percent"] >= 80) & (df["score_percent"] < 85)])
     boa = len(df[(df["score_percent"] >= 70) & (df["score_percent"] < 80)])
     inter = len(df[(df["score_percent"] >= 60) & (df["score_percent"] < 70)])
-    critica = len(df[df["score_percent"] < 60])
+    NASCEU PRA COIÓ = len(df[df["score_percent"] < 60])
 
     story.append(Paragraph("1. Resumo Executivo", section_style))
     story.append(Paragraph(
@@ -739,8 +739,8 @@ def generate_mock_ranking_pdf(simulado_nome, df):
     story.append(Paragraph("2. Leitura Estratégica do Grupo", section_style))
     story.append(Paragraph(
         (
-            f"Distribuição de performance: Elite = <b>{elite}</b>, Alta performance = <b>{alta}</b>, "
-            f"Boa performance = <b>{boa}</b>, Intermediária = <b>{inter}</b>, Crítica = <b>{critica}</b>."
+            f"Distribuição de performance: NÃO FEZ MAIS QUE A OBRIGAÇÃO = <b>{NÃO FEZ MAIS QUE A OBRIGAÇÃO}</b>, O ARQUIMEDES FAZ MELHOR = <b>{alta}</b>, "
+            f"PRA FICAR RUIM TEM QUE MELHORAR MUITO = <b>{PRA FICAR RUIM TEM QUE MELHORAR MUITO}</b>, DÁ PRA PASSAR EM MFC = <b>{DÁ PRA PASSAR EM MFC}</b>, NASCEU PRA COIÓ = <b>{NASCEU PRA COIÓ}</b>."
         ),
         body_style
     ))
@@ -869,7 +869,7 @@ def generate_mock_ranking_pdf(simulado_nome, df):
         if score >= 85:
             extra = "Leitura estratégica: perfil de excelência, com foco em manutenção de topo."
         elif score >= 80:
-            extra = "Leitura estratégica: desempenho competitivo, muito próximo da elite."
+            extra = "Leitura estratégica: desempenho competitivo, muito próximo da NÃO FEZ MAIS QUE A OBRIGAÇÃO."
         elif score >= 70:
             extra = "Leitura estratégica: boa base, ainda com espaço claro para refinamento."
         elif score >= 60:
@@ -7807,11 +7807,11 @@ def render_mock_multiuser_ranking():
     leader = df.iloc[0]
     last = df.iloc[-1]
 
-    elite = len(df[df["score_percent"] >= 85])
+    NÃO FEZ MAIS QUE A OBRIGAÇÃO = len(df[df["score_percent"] >= 85])
     alta = len(df[(df["score_percent"] >= 80) & (df["score_percent"] < 85)])
-    boa = len(df[(df["score_percent"] >= 70) & (df["score_percent"] < 80)])
+    PRA FICAR RUIM TEM QUE MELHORAR MUITO= len(df[(df["score_percent"] >= 70) & (df["score_percent"] < 80)])
     inter = len(df[(df["score_percent"] >= 60) & (df["score_percent"] < 70)])
-    critica = len(df[df["score_percent"] < 60])
+    NASCEU PRA COIÓ = len(df[df["score_percent"] < 60])
 
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     with c1:
@@ -7861,8 +7861,8 @@ def render_mock_multiuser_ranking():
     )
 
     st.write(
-        f"Distribuição do grupo: Elite = {elite}, Alta performance = {alta}, "
-        f"Boa performance = {boa}, Intermediária = {inter}, Crítica = {critica}."
+        f"Distribuição do grupo: NÃO FEZ MAIS QUE A OBRIGAÇÃO = {NÃO FEZ MAIS QUE A OBRIGAÇÃO}, O ARQUIMEDES FAZ MELHOR = {O ARQUIMEDES FAZ MELHOR}, "
+        f"PRA FICAR RUIM TEM QUE MELHORAR MUITO = {PRA FICAR RUIM TEM QUE MELHORAR MUITO}, DÁ PRA PASSAR EM MFC = {DÁ PRA PASSAR EM MFC}, NASCEU PRA COIÓ = {NASCEU PRA COIÓ}."
     )
 
     if geral["desvio"] <= 5:
@@ -7901,7 +7901,7 @@ def render_mock_multiuser_ranking():
             extra = "Leitura estratégica: perfil de excelência e manutenção de alto nível."
             st.success(texto + " " + extra)
         elif score >= 80:
-            extra = "Leitura estratégica: desempenho competitivo com potencial de chegar à elite."
+            extra = "Leitura estratégica: desempenho competitivo com potencial de chegar à NÃO FEZ MAIS QUE A OBRIGAÇÃO."
             st.success(texto + " " + extra)
         elif score >= 70:
             extra = "Leitura estratégica: boa base, mas ainda com margem clara de crescimento."
