@@ -709,11 +709,11 @@ def generate_mock_ranking_pdf(simulado_nome, df):
     top3 = df.head(3).copy()
     bottom3 = df.tail(3).copy()
 
-    NAO FEZ MAIS QUE A OBRIGAÇAO = len(df[df["score_percent"] >= 85])
-    O ARQUIMEDES FAZ MELHOR = len(df[(df["score_percent"] >= 80) & (df["score_percent"] < 85)])
-    PRA FICAR RUIM TEM QUE MELHORAR MUITO = len(df[(df["score_percent"] >= 70) & (df["score_percent"] < 80)])
-    DA PRA PASSAR EM MFC = len(df[(df["score_percent"] >= 60) & (df["score_percent"] < 70)])
-    NASCEU PRA COIO = len(df[df["score_percent"] < 60])
+    ELITE = len(df[df["score_percent"] >= 85])
+    BOA = len(df[(df["score_percent"] >= 80) & (df["score_percent"] < 85)])
+    INTER = len(df[(df["score_percent"] >= 70) & (df["score_percent"] < 80)])
+    MEDIANO = len(df[(df["score_percent"] >= 60) & (df["score_percent"] < 70)])
+    MISERAVEL = len(df[df["score_percent"] < 60])
 
     story.append(Paragraph("1. Resumo Executivo", section_style))
     story.append(Paragraph(
