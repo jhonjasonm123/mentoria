@@ -5077,34 +5077,36 @@ def add_study_session(
     cur = conn.cursor()
     try:
         cur.execute(
-            """
-            INSERT INTO study_sessions (
-                user_id,
-                session_date,
-                study_minutes,
-                questions_done,
-                correct_answers,
-                subject,
-                topic,
-                notes,
-                created_at,
-                grande_area
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                int(user_id),
-                session_date_str,
-                to_int(study_minutes, 0),
-                to_int(questions_done, 0),
-                to_int(correct_answers, 0),
-                normalize_text(subject),
-                normalize_text(topic),
-                normalize_text(notes),
-                datetime.now().isoformat(),
-                normalize_text(grande_area),
-            )
-        )
+    """
+    INSERT INTO study_sessions (
+        user_id,
+        session_date,
+        study_date,
+        study_minutes,
+        questions_done,
+        correct_answers,
+        subject,
+        topic,
+        notes,
+        created_at,
+        grande_area
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+    (
+        int(user_id),
+        session_date_str,
+        session_date_str,
+        to_int(study_minutes, 0),
+        to_int(questions_done, 0),
+        to_int(correct_answers, 0),
+        normalize_text(subject),
+        normalize_text(topic),
+        normalize_text(notes),
+        datetime.now().isoformat(),
+        normalize_text(grande_area),
+    )
+)
         conn.commit()
         return True, "Sessão registrada com sucesso."
     except Exception as e:
