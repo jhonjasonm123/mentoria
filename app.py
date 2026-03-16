@@ -4759,10 +4759,24 @@ def ensure_questions_review_schema():
                 subject TEXT NOT NULL DEFAULT '',
                 topic TEXT NOT NULL DEFAULT '',
                 review_days INTEGER NOT NULL DEFAULT 0,
+                questions_done INTEGER NOT NULL DEFAULT 0,
+                correct_answers INTEGER NOT NULL DEFAULT 0,
+                accuracy REAL NOT NULL DEFAULT 0,
                 completed_at TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
         """)
+
+        cur.execute("PRAGMA table_info(question_review_status)")
+        cols = [row[1] for row in cur.fetchall()]
+
+        if "questions_done" not in cols:
+            cur.execute("ALTER TABLE question_review_status ADD COLUMN questions_done INTEGER NOT NULL DEFAULT 0")
+        if "correct_answers" not in cols:
+            cur.execute("ALTER TABLE question_review_status ADD COLUMN correct_answers INTEGER NOT NULL DEFAULT 0")
+        if "accuracy" not in cols:
+            cur.execute("ALTER TABLE question_review_status ADD COLUMN accuracy REAL NOT NULL DEFAULT 0")
+
         conn.commit()
     finally:
         conn.close()
@@ -4799,35 +4813,154 @@ def fetch_question_review_status_map(user_id: int):
             out[key] = {
                 "completed_at": normalize_text(row.get("completed_at", "")),
                 "review_days": to_int(row.get("review_days", 0), 0),
+                "questions_done": to_int(row.get("questions_done", 0), 0),
+                "correct_answers": to_int(row.get("correct_answers", 0), 0),
+                "accuracy": round(float(row.get("accuracy", 0)), 1),
             }
     return out
 
 
-def mark_question_review_done(user_id: int, grande_area: str, subject: str, topic: str, review_days: int):
+def mark_question_review_done(
+    user_id: int,
+    grande_area: str,
+    subject: str,
+    topic: str,
+    questions_done: int,
+    correct_answers: int
+):
     ensure_questions_review_schema()
+
+    questions_done = to_int(questions_done, 0)
+    correct_answers = to_int(correct_answers, 0)
+
+    if questions_done <= 0:
+        return False, "Informe quantas questões fez."
+    if correct_answers < 0:
+        return False, "Acertos inválidos."
+    if correct_answers > questions_done:
+        return False, "Acertos maiores que questões."
+
+    accuracy = round((correct_answers / questions_done) * 100, 1) if questions_done > 0 else 0.0
+    rule = get_questions_review_rule(accuracy)
+    review_days = int(rule["review_days"])
+
     conn = get_conn()
     cur = conn.cursor()
     try:
+        # salva histórico da revisão
         cur.execute("""
             INSERT INTO question_review_status (
-                user_id, grande_area, subject, topic, review_days, completed_at, created_at
+                user_id, grande_area, subject, topic,
+                review_days, questions_done, correct_answers, accuracy,
+                completed_at, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             int(user_id),
             normalize_text(grande_area),
             normalize_text(subject),
             normalize_text(topic),
-            to_int(review_days, 0),
+            review_days,
+            questions_done,
+            correct_answers,
+            accuracy,
             date.today().isoformat(),
             datetime.now().isoformat()
         ))
+
+        # conta no desempenho geral
+        cur.execute("""
+            INSERT INTO study_sessions (
+                user_id,
+                session_date,
+                study_minutes,
+                questions_done,
+                correct_answers,
+                subject,
+                topic,
+                notes,
+                created_at,
+                grande_area
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            int(user_id),
+            date.today().isoformat(),
+            0,
+            questions_done,
+            correct_answers,
+            normalize_text(subject),
+            normalize_text(topic),
+            "Revisão concluída pelo painel automático",
+            datetime.now().isoformat(),
+            normalize_text(grande_area),
+        ))
+
         conn.commit()
-        return True, "Revisão concluída com sucesso."
+        return True, f"Revisão concluída. Próxima em {review_days} dias."
     except Exception as e:
         return False, f"Erro ao concluir revisão: {e}"
     finally:
         conn.close()
+
+
+@st.dialog("Concluir revisão")
+def open_question_review_modal(
+    user_id: int,
+    grande_area: str,
+    subject: str,
+    topic: str,
+    topic_display: str,
+    default_questions: int,
+    default_correct: int
+):
+    st.markdown(f"**{topic_display}**")
+
+    review_key = build_question_review_key(grande_area, subject, topic)
+
+    review_questions_done = st.number_input(
+        "Questões feitas na revisão",
+        min_value=1,
+        step=1,
+        value=max(1, int(default_questions)),
+        key=f"modal_review_questions_done_{review_key}"
+    )
+
+    review_correct_answers = st.number_input(
+        "Acertos na revisão",
+        min_value=0,
+        max_value=int(review_questions_done),
+        step=1,
+        value=min(int(review_questions_done), int(default_correct)),
+        key=f"modal_review_correct_answers_{review_key}"
+    )
+
+    if review_questions_done > 0:
+        acc = round((review_correct_answers / review_questions_done) * 100, 1)
+        rule = get_questions_review_rule(acc)
+        st.info(f"Nova média: {acc}% • Próxima revisão: {rule['review_days']} dias")
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        if st.button("Cancelar", use_container_width=True, key=f"cancel_modal_{review_key}"):
+            safe_rerun()
+
+    with c2:
+        if st.button("Salvar revisão", use_container_width=True, key=f"save_modal_{review_key}"):
+            ok, msg = mark_question_review_done(
+                user_id=user_id,
+                grande_area=grande_area,
+                subject=subject,
+                topic=topic,
+                questions_done=review_questions_done,
+                correct_answers=review_correct_answers
+            )
+            if ok:
+                st.success(msg)
+                safe_rerun()
+            else:
+                st.error(msg)
 
 
 def get_questions_taxonomy_from_csv():
@@ -4948,10 +5081,8 @@ def add_study_session(
             INSERT INTO study_sessions (
                 user_id,
                 session_date,
-                study_date,
                 study_minutes,
                 questions_done,
-                questions_solved,
                 correct_answers,
                 subject,
                 topic,
@@ -4959,14 +5090,12 @@ def add_study_session(
                 created_at,
                 grande_area
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 int(user_id),
                 session_date_str,
-                session_date_str,
                 to_int(study_minutes, 0),
-                to_int(questions_done, 0),
                 to_int(questions_done, 0),
                 to_int(correct_answers, 0),
                 normalize_text(subject),
@@ -5104,7 +5233,9 @@ def build_questions_review_df(sessions_df: pd.DataFrame, user_id: int):
             "questions_done", "correct_answers", "study_minutes",
             "accuracy", "last_session_date", "review_days",
             "review_label", "priority_label", "priority_order",
-            "next_review_date", "review_status", "last_review_done_at"
+            "next_review_date", "review_status", "last_review_done_at",
+            "last_review_questions_done", "last_review_correct_answers",
+            "last_review_accuracy"
         ])
 
     base = sessions_df.copy()
@@ -5135,7 +5266,9 @@ def build_questions_review_df(sessions_df: pd.DataFrame, user_id: int):
             "questions_done", "correct_answers", "study_minutes",
             "accuracy", "last_session_date", "review_days",
             "review_label", "priority_label", "priority_order",
-            "next_review_date", "review_status", "last_review_done_at"
+            "next_review_date", "review_status", "last_review_done_at",
+            "last_review_questions_done", "last_review_correct_answers",
+            "last_review_accuracy"
         ])
 
     grouped["accuracy"] = ((grouped["correct_answers"] / grouped["questions_done"]) * 100).round(1)
@@ -5149,13 +5282,16 @@ def build_questions_review_df(sessions_df: pd.DataFrame, user_id: int):
     next_review_date_list = []
     review_status_list = []
     last_review_done_list = []
+    last_review_questions_done_list = []
+    last_review_correct_answers_list = []
+    last_review_accuracy_list = []
 
     today_dt = date.today()
 
     for _, row in grouped.iterrows():
         rule = get_questions_review_rule(float(row["accuracy"]))
-        review_days = int(rule["review_days"])
         last_session = normalize_text(row["last_session_date"])
+
         key = build_question_review_key(
             row.get("grande_area", ""),
             row.get("subject", ""),
@@ -5169,11 +5305,31 @@ def build_questions_review_df(sessions_df: pd.DataFrame, user_id: int):
 
         status_info = status_map.get(key)
         last_review_done_at = ""
+        last_review_questions_done = 0
+        last_review_correct_answers = 0
+        last_review_accuracy = 0.0
         base_date = last_session_dt
 
         if status_info:
             completed_at = normalize_text(status_info.get("completed_at", ""))
             last_review_done_at = completed_at
+            last_review_questions_done = to_int(status_info.get("questions_done", 0), 0)
+            last_review_correct_answers = to_int(status_info.get("correct_answers", 0), 0)
+            last_review_accuracy = round(float(status_info.get("accuracy", 0)), 1)
+
+            stored_review_days = to_int(status_info.get("review_days", 0), 0)
+            if stored_review_days > 0:
+                review_days = stored_review_days
+                review_label = f"Revisão em {stored_review_days} dias"
+                priority_ref = get_questions_review_rule(last_review_accuracy)
+                priority_label = priority_ref["priority_label"]
+                priority_order = priority_ref["priority_order"]
+            else:
+                review_days = int(rule["review_days"])
+                review_label = rule["review_label"]
+                priority_label = rule["priority_label"]
+                priority_order = rule["priority_order"]
+
             try:
                 completed_dt = datetime.strptime(completed_at, "%Y-%m-%d").date() if completed_at else None
             except Exception:
@@ -5181,6 +5337,11 @@ def build_questions_review_df(sessions_df: pd.DataFrame, user_id: int):
 
             if completed_dt and completed_dt >= last_session_dt:
                 base_date = completed_dt
+        else:
+            review_days = int(rule["review_days"])
+            review_label = rule["review_label"]
+            priority_label = rule["priority_label"]
+            priority_order = rule["priority_order"]
 
         next_review = base_date + timedelta(days=review_days)
 
@@ -5193,12 +5354,15 @@ def build_questions_review_df(sessions_df: pd.DataFrame, user_id: int):
             review_status = f"Faltam {delta} dia(s)"
 
         review_days_list.append(review_days)
-        review_label_list.append(rule["review_label"])
-        priority_label_list.append(rule["priority_label"])
-        priority_order_list.append(rule["priority_order"])
+        review_label_list.append(review_label)
+        priority_label_list.append(priority_label)
+        priority_order_list.append(priority_order)
         next_review_date_list.append(next_review.isoformat())
         review_status_list.append(review_status)
         last_review_done_list.append(last_review_done_at)
+        last_review_questions_done_list.append(last_review_questions_done)
+        last_review_correct_answers_list.append(last_review_correct_answers)
+        last_review_accuracy_list.append(last_review_accuracy)
 
     grouped["review_days"] = review_days_list
     grouped["review_label"] = review_label_list
@@ -5207,6 +5371,9 @@ def build_questions_review_df(sessions_df: pd.DataFrame, user_id: int):
     grouped["next_review_date"] = next_review_date_list
     grouped["review_status"] = review_status_list
     grouped["last_review_done_at"] = last_review_done_list
+    grouped["last_review_questions_done"] = last_review_questions_done_list
+    grouped["last_review_correct_answers"] = last_review_correct_answers_list
+    grouped["last_review_accuracy"] = last_review_accuracy_list
 
     grouped = grouped.sort_values(
         ["priority_order", "next_review_date", "accuracy", "questions_done"],
@@ -5341,19 +5508,32 @@ def render_questions_review_panel(review_df: pd.DataFrame, user_id: int):
             unsafe_allow_html=True
         )
 
-        if st.button("Marcar revisão concluída", key=f"question_review_done_{build_question_review_key(grande_area, subject, topic)}", use_container_width=True):
-            ok, msg = mark_question_review_done(
+        review_key = build_question_review_key(grande_area, subject, topic)
+
+        last_review_questions_done = to_int(row.get("last_review_questions_done", 0), 0)
+        last_review_correct_answers = to_int(row.get("last_review_correct_answers", 0), 0)
+        last_review_accuracy = round(float(row.get("last_review_accuracy", 0)), 1)
+
+        if last_review_questions_done > 0:
+            st.markdown(
+                f'<div class="b3-item-meta" style="margin-top:-4px; margin-bottom:10px;">'
+                f'Última revisão registrada: {last_review_correct_answers}/{last_review_questions_done} • {last_review_accuracy}%'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+        default_correct = max(0, int(round((accuracy / 100) * max(1, questions_done))))
+
+        if st.button("Marcar revisão concluída", key=f"question_review_done_{review_key}", use_container_width=True):
+            open_question_review_modal(
                 user_id=user_id,
                 grande_area=grande_area,
                 subject=subject,
                 topic=topic,
-                review_days=to_int(row.get("review_days", 0), 0)
+                topic_display=topic_display,
+                default_questions=questions_done,
+                default_correct=default_correct
             )
-            if ok:
-                st.success(msg)
-                safe_rerun()
-            else:
-                st.error(msg)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -5381,12 +5561,17 @@ def render_questions_subject_table(review_df: pd.DataFrame):
             "review_status": "Status",
             "priority_label": "Prioridade",
             "last_review_done_at": "Última revisão concluída",
+            "last_review_questions_done": "Questões da última revisão",
+            "last_review_correct_answers": "Acertos da última revisão",
+            "last_review_accuracy": "Acurácia da última revisão (%)",
         })
 
         keep_cols = [
             "Grande área", "Tema", "Assunto para revisão", "Questões", "Acertos",
             "Acurácia (%)", "Tempo (min)", "Último treino", "Regra",
-            "Próxima revisão", "Status", "Prioridade", "Última revisão concluída"
+            "Próxima revisão", "Status", "Prioridade", "Última revisão concluída",
+            "Questões da última revisão", "Acertos da última revisão",
+            "Acurácia da última revisão (%)"
         ]
         st.dataframe(view_df[keep_cols], use_container_width=True, hide_index=True)
 
@@ -5681,7 +5866,7 @@ def render_questions_manager():
                             safe_rerun()
 
         st.markdown("</div>", unsafe_allow_html=True)
-
+        
 # =========================================================
 # FLASHCARDS
 # =========================================================
